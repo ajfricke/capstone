@@ -2,6 +2,11 @@
 int input_bit = -1;
 char input_byte = 'z';
 
+// Arduino pin connections for the shift registers
+int shiftClock = 9;
+int latchClock = 10;
+int serialData = 12;
+
 // footsize to LED positions mapping
 int footsize_LED_map_F[][2] = {{1,1}, {2,2}, {3,3}, {4,4}};
 int footsize_LED_map_M[][2] = {{1,1}, {2,2}, {3,3}, {4,4}};
@@ -21,8 +26,13 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
 
-  // set pin 13 as an output pin for LED (will have to do this for all LEDs)
-  pinMode(13, OUTPUT);
+  // set shift register pins to output
+  pinMode(shiftClock, OUTPUT);
+  pinMode(latchClock, OUTPUT);
+  pinMode(serialData, OUTPUT);
+
+  digitalWrite(latchClock, LOW); // put low so LEDs don't change while sending in bits
+  shiftOut(serialData, shiftClock, MSBFIRST, shiftCount)
 }
 
 void loop() {
@@ -91,6 +101,9 @@ struct LED_pos footsize_to_LED_pos(int sex, int foot, double footsize) {
 
 // turn on LEDs
 void initialize_LEDs(struct pos) {
+
+
+
   digitalWrite(LED_pos_to_pin_middle[pos.side_pos], HIGH)
   
   if (pos.foot == 0) {
