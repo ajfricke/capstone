@@ -30,9 +30,9 @@ void setup() {
 }
 
 void loop() {
-  // with these settings, will take ~5 seconds to move 100 mm
+  // with these settings, will take ~2.5 seconds to move 100 mm
   int strokeStepMM = 2;
-  int delayMS = 100;
+  int delayMS = 50;
 
   // move actuator up to at most 100 mm, checking for laser cut from optocoupler every step 2mm step
   for (int strokeMM = 1; strokeMM < 100; strokeMM += strokeStepMM) {
@@ -41,6 +41,7 @@ void loop() {
 
     if (optoVal < 100) {
       Serial.println("Laser cut. Resetting actuator");
+      delay(3000); // wait 3 seconds
       moveActuator(0); // reset actuator
       
       break; // exit loop
