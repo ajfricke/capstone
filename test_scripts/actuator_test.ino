@@ -2,18 +2,18 @@
 
 Servo myServo;
 
-#define servoPin 8
-#define actuatorShaftLengthMM 100 // change depending on actuator
+#define servoPin 3
+#define actuatorShaftLengthMM 50
 
 // move actuator to the mm position specified
 void moveActuator(float strokeMM) {
-  float strokePercentage = strokeMM/actuatorShaftLengthMM/100;
+  float strokePercentage = strokeMM/actuatorShaftLengthMM;
 
   // don't go too close to servo limit to prevent strain
-  if (strokePercentage < 1.0) {
-    strokePercentage = 1.0;
-  } else if (strokePercentage > 99.0) {
-    strokePercentage = 99.0;
+  if (strokePercentage < 0.01) {
+    strokePercentage = 0.01;
+  } else if (strokePercentage > 0.99) {
+    strokePercentage = 0.99;
   }
 
   // full range runs from 1000-2000 usec
@@ -24,21 +24,23 @@ void moveActuator(float strokeMM) {
 }
 
 void setup() {
+  Serial.begin(9600);
   myServo.attach(servoPin);
+  myServo.writeMicroseconds(1000);
 }
 
 void loop() {
-  int actuatorStep = 5;
-  int delayMS = 500;
+  int actuatorStep = 2;
+  int delayMS = 50;
 
   // move actuator up to the end
-  for (int i = 1; i < 99; i += actuatorStep) {
+  for (int i = 1; i < 49; i += actuatorStep) {
     moveActuator(i);
     delay(delayMS);
   }
 
   // move actuator down to the beginning
-  for (int i = 99; i > 1; i -= actuatorStep) {
+  for (int i = 50; i > 1; i -= actuatorStep) {
     moveActuator(i);
     delay(delayMS);
   }
