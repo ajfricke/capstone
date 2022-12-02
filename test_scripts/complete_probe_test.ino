@@ -1,4 +1,7 @@
 #include <AccelStepper.h>
+#include <Servo.h>
+
+Servo myServo;
 
 // define pins
 #define dirPin100 2
@@ -6,13 +9,15 @@
 #define dirPin300 4
 #define stepPin300 5
 #define motorInterfaceType 1 // indicates a driver
+#define servoPin 6 // TODO: check later
+#define optocouplerPin A2
 
-// conversion information
 #define mmPerRev 5
 #define oneMicrostepStepsPerRev 200
 #define microstep 1/4 // change if needed
+#define actuatorShaftLengthMM 50
 
-// hardcoded now, will be determined by app later
+// TODO: hardcoded now, will be determined by app later
 #define sex 1 // 0 for men, 1 for women
 #define footsize 10 
 
@@ -52,11 +57,53 @@ void moveXYRails(int xPos, int yPos) {
   stepper100.runToPosition();
 }
 
+// move actuator to the mm position specified
+void moveActuator(float strokeMM) {
+  float strokePercentage = strokeMM/actuatorShaftLengthMM;
+
+  // don't go too close to servo limit to prevent strain
+  if (strokePercentage < 0.01) {
+    strokePercentage = 0.01;
+  } else if (strokePercentage > 0.99) {
+    strokePercentage = 0.99;
+  }
+
+  // full range runs from 1000-2000 usec
+  int usec = 1000 + strokePercentage * 1000;
+
+  // move actuator
+  myServo.writeMicroseconds(usec);
+}
+
+bool raiseMonofilament(int strokeStepMM, int delayMS) {
+  int strokeStepMM = 2;
+  int delayMS = 500; // TODO: move
+
+  // move actuator up to at most 50 mm, checking for laser cut from optocoupler every strokeStepMM
+  for (int mmLocation = 1; mmLocation < actuatorShaftLengthMM; mmLocation += strokeStepMM) {
+    int optoVal = analogRead(optocouplerPin); // read the value from the optocoupler
+
+    if (optoVal < 100) {
+      return true;
+    }
+
+    moveActuator(mmLocation); // move actuator to mmLocation
+    delay(delayMS); // delay by delayMS before next stroke
+  }
+
+  moveActuator(0); // reset if laser not cut
+  return false;
+}
+
 void setup() {
   Serial.begin(9600);
   randomSeed(analogRead(5)); // randomize seed using noise from analog pin 5
 
-  // setting max speed and acceleration of the stepper motors to take their max possible values
+  // set up actuator
+  myServo.attach(servoPin);
+  myServo.writeMicroseconds(1000);
+
+  // set up stepper motors
   stepper100.setMaxSpeed(999999);
   stepper300.setMaxSpeed(999999);
   stepper100.setAcceleration(999999);
@@ -94,9 +141,18 @@ void loop() {
   // move rails to each of the 4 probing locations
   for (int i = 0; i < 4; i++) {
     moveXYRails(probingCoords[i][0], probingCoords[i][1]);
-    delay(3000);
+
+    // test probing location three times
+    for (int j = 0; j < 3; j++) {
+        raiseMonofilament();
+        delay(1000); // TODO: randomize delay
+    }
+
+    delay(3000); // TODO: randomize delay
   }
 
-  moveXYRails(0, 0); // return rails to starting position
-  exit(0); // exit the loop
+  // move motors and actuator back to starting positions and exit
+  moveXYRails(0, 0);
+  moveActuator(0);
+  exit(0);
 }
