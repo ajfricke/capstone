@@ -53,7 +53,7 @@ AccelStepper stepper300 = AccelStepper(motorInterfaceType, stepPin300, dirPin300
 
 // convert distances in mm to motor steps
 int mmToSteps(int mmPos) {
-  stepsPerRev = oneMicrostepStepsPerRev * 1/microstep;
+  float stepsPerRev = oneMicrostepStepsPerRev * 1/microstep;
   return int(stepsPerRev*mmPos/mmPerRev);
 }
 
@@ -69,7 +69,7 @@ void moveXYRails(int xPos, int yPos) {
 void moveActuator(float strokeMM) {
   float strokePercentage = strokeMM/actuatorShaftLengthMM;
 
-  // don't go too close to servo limit to prevent strain
+  // don"t go too close to servo limit to prevent strain
   if (strokePercentage < 0.01) {
     strokePercentage = 0.01;
   } else if (strokePercentage > 0.99) {
@@ -83,7 +83,7 @@ void moveActuator(float strokeMM) {
   myServo.writeMicroseconds(usec);
 }
 
-bool raiseMonofilament(int strokeStepMM, int delayMS) {
+bool raiseMonofilament() {
   // move actuator up to at most 50 mm, checking for laser cut from optocoupler every strokeStepMM
   for (int mmLocation = 1; mmLocation < actuatorShaftLengthMM; mmLocation += strokeStepMM) {
     int optoVal = analogRead(optocouplerPin); // read the value from the optocoupler
@@ -123,23 +123,32 @@ void setup() {
 
   // determine the coordinates for each probing location
   if ((sex == 1) && (footsize == 5)) {
-    m1Coords = w5FootsizeCoords[0];
-    m3Coords = w5FootsizeCoords[1];
-    m5Coords = w5FootsizeCoords[2];
-    bigToeCoords = w5FootsizeCoords[3];
+    for (int i; i < 2; i++) {
+      m1Coords[i] = w5FootsizeCoords[0][i];
+      m3Coords[i] = w5FootsizeCoords[1][i];
+      m5Coords[i] = w5FootsizeCoords[2][i];
+      bigToeCoords[i] = w5FootsizeCoords[3][i];
+    }
   } else {
-    m1Coords = m1CoordList[footsize+sex-5];
-    m3Coords = {m1Coords[0]*m3Conversions[0], m1Coords[1]*m3Conversions[1]};
-    m5Coords = {m1Coords[0]*m5Conversions[0], m1Coords[1]*m5Conversions[1]};
-    bigToeCoords = {m1Coords[0]*bigToeConversions[0], m1Coords[1]*bigToeConversions[1]};
+    for (int i; i < 2; i++) {
+      m1Coords[i] = m1CoordList[footsize+sex-5][i];
+      m3Coords[i] = m1Coords[i]*m3Conversions[i];
+      m5Coords[i] = m1Coords[i]*m5Conversions[i];
+      bigToeCoords[i] = m1Coords[i]*bigToeConversions[i];
+    }
   }
-  
-  probingCoords = {m1Coords, m3Coords, m5Coords, bigToeCoords};
+
+  for (int i; i < 2; i++) {
+      probingCoords[0][i] = m1Coords[i];
+      probingCoords[1][i] = m3Coords[i];
+      probingCoords[2][i] = m5Coords[i];
+      probingCoords[3][i] = bigToeCoords[i];
+  }
 
   // recalculate probing coordinates with new reference point
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 2; j++) {
-        probingCoord[i][j] = probingCoord[i][j] - newReferencePoint[j];
+        probingCoords[i][j] = probingCoords[i][j] - newReferencePoint[j];
     }
   }
 
@@ -147,20 +156,22 @@ void setup() {
   int j;
   float temp[2];
   for (int i = 0; i < 4; i++) {
-      j = random(0, n - i); // get random index
+      j = random(0, 3 - i); // get random index
 
       // swap values
-      temp = probingCoords[i];
-      probingCoords[i] = probingCoords[j];
-      probingCoords[j] = temp;
+      for (int k; k < 2; k++) {
+        temp[k] = probingCoords[i][k];
+        probingCoords[i][k] = probingCoords[j][k];
+        probingCoords[j][k] = temp[k];
+      }
   }
 }
 
 void loop() {
-  Serial.println('Starting test.')
+  Serial.println("Starting test.");
   // move rails to each of the 4 probing locations
   for (int i = 0; i < 4; i++) {
-    Serial.println('Moving XY rails to probing location.');
+    Serial.println("Moving XY rails to probing location.");
 
     // negate x-coordinate if left foot
     if (foot == 1) {
@@ -172,8 +183,8 @@ void loop() {
     // test probing location three times
     int improperProbeCount = 0;
     for (int j = 0; j < 3; j++) {
-        Serial.println('Raising monofilament.');
-        properProbe = raiseMonofilament();
+        Serial.println("Raising monofilament.");
+        bool properProbe = raiseMonofilament();
 
         if (properProbe == false) {
             j -= 1;
@@ -183,11 +194,11 @@ void loop() {
         }
 
         if (improperProbeCount == 3){
-            Serial.println('Monofilament is not exerting 10g force as determined by optocoupler after 3 tries. Exiting.');
+            Serial.println("Monofilament is not exerting 10g force as determined by optocoupler after 3 tries. Exiting.");
             resetAndExit();
         }
 
-        Serial.println('Raising lowering.');
+        Serial.println("Raising lowering.");
         moveActuator(0); // lower monofilament back down
 
         if (j != 2) {
@@ -199,12 +210,12 @@ void loop() {
   }
 
   if (foot == 1) {
-    Serial.println('Test finished. Exiting.');
+    Serial.println("Test finished. Exiting.");
     resetAndExit();
   } else {
     foot = 1; // test left foot next
     moveXYRails(0, 0);
     moveActuator(0);
-    Serial.println('Repeating test with left foot.');
+    Serial.println("Repeating test with left foot.");
   }
 }
