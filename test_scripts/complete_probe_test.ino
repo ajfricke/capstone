@@ -4,17 +4,17 @@
 Servo myServo;
 
 // define pins
-#define dirPin100 2
-#define stepPin100 3
-#define dirPin300 4
-#define stepPin300 5
+#define dirPin100 4
+#define stepPin100 5
+#define dirPin300 7
+#define stepPin300 6
 #define motorInterfaceType 1 // indicates a driver
-#define servoPin 6 // TODO: check later
+#define servoPin 10 // TODO: check later
 #define optocouplerPin A2
 
 #define mmPerRev 5
 #define oneMicrostepStepsPerRev 200
-#define microstep 1/4 // change if needed
+#define microstep 0.25 // change if needed
 #define actuatorShaftLengthMM 50
 
 // for actuator probing
@@ -54,15 +54,16 @@ AccelStepper stepper300 = AccelStepper(motorInterfaceType, stepPin300, dirPin300
 // convert distances in mm to motor steps
 int mmToSteps(int mmPos) {
   float stepsPerRev = oneMicrostepStepsPerRev * 1/microstep;
-  return int(stepsPerRev*mmPos/mmPerRev);
+  int steps = int(stepsPerRev*mmPos/mmPerRev);
+  return steps;
 }
 
 // move the rails to the xy coordinate
 void moveXYRails(int xPos, int yPos) {
-  stepper300.moveTo(mmToSteps(xPos));
-  stepper100.moveTo(mmToSteps(yPos));
-  stepper300.runToPosition();
+  stepper100.moveTo(mmToSteps(xPos));
+  stepper300.moveTo(mmToSteps(yPos));
   stepper100.runToPosition();
+  stepper300.runToPosition();
 }
 
 // move actuator to the mm position specified
@@ -116,10 +117,10 @@ void setup() {
   myServo.writeMicroseconds(1000);
 
   // set up stepper motors
-  stepper100.setMaxSpeed(999999);
-  stepper300.setMaxSpeed(999999);
-  stepper100.setAcceleration(999999);
-  stepper300.setAcceleration(999999);
+  stepper100.setMaxSpeed(50000);
+  stepper300.setMaxSpeed(50000);
+  stepper100.setAcceleration(50000);
+  stepper300.setAcceleration(50000);
 
   // determine the coordinates for each probing location
   if ((sex == 1) && (footsize == 5)) {
@@ -190,6 +191,7 @@ void loop() {
             j -= 1;
             improperProbeCount += 1;
         } else {
+            Serial.println("Input from photointerruptor. Holding for 2 seconds");
             delay(2000); // hold probe to foot for 2 seconds
         }
 
@@ -202,11 +204,11 @@ void loop() {
         moveActuator(0); // lower monofilament back down
 
         if (j != 2) {
-            delay(random(1000, 3000)); // randomizes same location probing at intervals between 1-3s
+            delay(random(500, 2000)); // randomizes same location probing at intervals between 1-3s
         }
     }
 
-    delay(random(1000, 3000)); // randomizes different location probing at intervals between 1-3s
+    delay(random(500, 2000)); // randomizes different location probing at intervals between 1-3s
   }
 
   if (foot == 1) {
