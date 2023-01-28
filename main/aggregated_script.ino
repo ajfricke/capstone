@@ -36,9 +36,10 @@ bool recvdAppData = true;
 #define strokeStepMM 2
 #define delayMS 100
 
-// TODO: hardcoded now, will be determined by app later
-#define sex 1 // 0 for women, 1 for men
-#define footsize 10 
+int leftLEDPos = -1;
+int rightLEDPos = -1;
+int leftMidLEDPos = -1;
+int rightMidLEDPos = -1;
 //** END ** //
 
 //** PINS & VARIABLES FOR CALIBRATION **//
@@ -114,6 +115,7 @@ void moveActuator(float strokeMM) {
 }
 
 
+// raise actuator until photointerrupter input
 bool raiseMonofilament() {
     // move actuator up to at most actuatorShaftLengthMM, checking for input from photointerrupters every strokeStepMM
     for (int mmLocation = 1; mmLocation < actuatorShaftLengthMM; mmLocation += strokeStepMM) {
@@ -193,9 +195,19 @@ void calibrationLoop(String currState) {
                 prevState = currState;
                 currState = "mid";
                 prevPos = sr_i;
+                if (currState == "left") {
+                    leftLEDPos = sr_i;
+                } else if (currState == "right") {
+                    rightLEDPos = sr_i;
+                }
             } else if (currState == "mid") {
                 Serial.println('Finished calibration.')
-                // TODO: send sr_i
+                if (prevState == "left") {
+                    leftMidLEDPos = sr_i;
+                } else if (prevState == "right") {
+                    rightMidLEDPos = sr_j;
+                }
+                // TODO: send sr_i or sr_j
                 finished = true;
             }
         }
@@ -282,7 +294,6 @@ void probeLoop(String foot) {
 
 
 void setup() {
-    //** PROBING SETUP **//
     Serial.begin(9600);
     randomSeed(analogRead(5)); // randomize seed using noise from analog pin 5
 
@@ -296,13 +307,37 @@ void setup() {
     stepper100.setAcceleration(50000);
     stepper300.setAcceleration(50000);
 
+    // set up shift registers
+    pinMode(latchPin, OUTPUT);
+    pinMode(clockPin, OUTPUT);
+    pinMode(dataPin, OUTPUT);
+}
+
+
+void intializeLEDs(String foot) {
+    digitalWrite(latchPin, LOW);
+    if (foot == "left") {
+        // light up LEDs for left foot
+        for (int i = 0; i < 4; i++) {
+            shiftOut(dataPin, clockPin, MSBFIRST, leftMidLEDs[leftMidLEDPos][i] + leftLEDs[leftLEDPos][i]);
+        }
+    } else if (foot == "right") {
+        // light up LEDs for right foot
+        for (int i = 0; i < 4; i++) {
+            shiftOut(dataPin, clockPin, MSBFIRST, rightMidLEDs[rightLEDPos][i] + rightLEDs[rightLEDPos][i]);
+        }
+    }
+    digitalWrite(latchPin, HIGH);
+}
+
+
+void getProbingCoords() {
     // determine the coordinates for each probing location
     if ((sex == 0) && (footsize == 5)) {
-        for (int i; i < 2; i++) {
-            probingCoords[0][i] = w5FootsizeCoords[0][i];
-            probingCoords[1][i] = w5FootsizeCoords[1][i];
-            probingCoords[2][i] = w5FootsizeCoords[2][i];
-            probingCoords[3][i] = w5FootsizeCoords[3][i];
+        for (int k; k < 4; k++) {
+            for (int i; i < 2; i++) {
+                probingCoords[k][i] = w5FootsizeCoords[k][i];
+            }
         }
     } else {
         for (int i; i < 2; i++) {
@@ -333,21 +368,10 @@ void setup() {
             probingCoords[j][k] = temp[k];
         }
     }
-    //** END **//
-
-    //** CALIBRATION SETUP **//
-    pinMode(latchPin, OUTPUT);
-    pinMode(clockPin, OUTPUT);
-    pinMode(dataPin, OUTPUT);
-    
-    pinMode(buttonOut, INPUT);
-    pinMode(buttonIn, INPUT);
-    pinMode(buttonRail, INPUT);
-    //** END **//
 }
 
 
-bool getInitialAppData() {
+bool getInitialAppInput() {
     bool recvInProgress = false;
     byte ndx = 0;
     char startMarker = '<';
@@ -380,15 +404,28 @@ bool getInitialAppData() {
         strcpy(tempChars, receivedChars);
         char * strtokIndx; // used by strtok() as an index
 
-        strtokIndx = strtok(tempChars, ","); // get first part of message
-        strcpy(footInfo, strtokIndx); // copy it to messageFromPC
-        Serial.println('Got foot info from app: ')
-        Serial.print(footInfo);
-    
-        strtokIndx = strtok(NULL, ","); // this continues where the previous call left off
-        strcpy(toPerform, strtokIndx); // copy it to messageFromPC
+        toPerform = strtok(tempChars, ","); // probe or calibration
         Serial.println('Got info on what to perform from app: ')
         Serial.print(toPerform);
+
+        footInfo = strtok(NULL, ","); // left, right, or both
+        Serial.println('Got foot info from app: ')
+        Serial.print(footInfo);
+
+        if (toPerform == 'probe') {
+            if (footInfo == "left" || footInfo == "both") {
+                leftLEDPos = int(strtok(NULL, ","));
+                leftMidLEDPos = int(strtok(NULL, ","));
+            } else if (footInfo == "right" || footInfo == "both") {
+                rightLEDPos = int(strtok(NULL, ","));
+                rightMidLEDPos = int(strtok(NULL, ","));
+            }
+        } else if (toPerform == 'calibration') {
+            // TODO: initialize LEDs based on foot size
+            footSize = int(strtok(NULL, ","));
+            Serial.println('Got foot size from app: ');
+            Serial.print(footSize);
+        }
 
         newData = false;
 
@@ -398,23 +435,17 @@ bool getInitialAppData() {
     return false;
 }
 
-// send at one time: 
-// - 'both', 'left', or 'right'
-// - 'calibrate' or 'probe'
-
-// later:
-// - 0 for redo calibration, 1 for continue
-// Need to differentiate what to redo. Vertical? Mid?
-// For now, let's ignore redoing previous calibrations. Only can redo current
 
 void loop() {
     // NEED FOOT SIZE & SEX
-    recvdAppData = getInitialAppData()
+    recvdAppInput = getInitialAppInput();
 
-    if (recvdAppData) {
+    if (recvdAppInput) {
         if (toPerform == "calibrate") {
             mode = 1;
         } else if (toPerform == "probe") {
+            intializeLEDs();
+            getProbingCoords();
             mode = 2;
         }
     }
