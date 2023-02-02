@@ -37,6 +37,10 @@ bool recvdAppData = true;
 #define strokeStepMM 2
 #define delayMS 100
 
+bit response;
+unsigned long currMillis;
+unsigned long prevMillis;
+
 // 1st metatarsal (x,y) coordinates for different foot sizes
 float m1CoordList[9][2] = {{18.52799,163.83845}, {19.41122,171.12136}, {20.0718,177.67446}, 
                                 {21.39691,184.95694}, {21.83603,189.32687}, {22.49935,196.60877}, 
@@ -56,12 +60,12 @@ AccelStepper stepper300 = AccelStepper(motorInterfaceType, stepPin300, dirPin300
 
 
 //** CALIBRATION INITIALIZATIONS **//
-#define buttonRail 2
-#define buttonIn 3
-#define buttonOut 4 // TODO: DUPLICATE PIN - change
 #define clockPin 9
 #define latchPin 10 // TODO: DUPLICATE PIN - change
 #define dataPin 12
+
+int sex;
+int footsize;
 
 int leftLEDs[10][4] = {{0,0,0,1}, {0,0,0,2}, {0,0,0,4}, {0,0,0,8},
 					   {0,0,0,16}, {0,0,0,32}, {0,0,0,64}, {0,0,0,128},
@@ -192,7 +196,6 @@ void probeLoop(String foot) {
         Serial.println("Moving XY rails to probing location.");
 
         // negate x-coordinate if left foot
-        // TODO: should we do this elsewhere? Then wouldn't need to pass in foot. Only used here
         if (foot == "left") {
             moveXYRails(-probingCoords[i][0], probingCoords[i][1]);
         } else {
@@ -223,11 +226,25 @@ void probeLoop(String foot) {
             Serial.println("Lowering monofilament.");
             moveActuator(0); // lower monofilament back down
 
+
+            prevMillis = millis();
+            currMillis = millis();
+            
+            
+            // wait for user response, otherwise will be marked as no
+            // TODO: implement comm from app
+            while((currMillis - prevMillis < 2000) || response == 1) {
+                currMillis = millis();
+                getAppResponse();
+            }
+            delay(2000);
+
             if (j != 2) {
                 delay(random(500, 2000)); // randomize timing between same location probing at intervals between 1-3s
             }
         }
-
+        
+        // TODO: tell app that we're moving on to next location
         delay(random(500, 2000)); // randomize timing between different location probing at intervals between 1-3s
     }
 
@@ -291,7 +308,6 @@ void calibrationLoop(String currState) {
         } else if (instruction == 2) { // rail confirmed
             if (currState == "left" or currState == "right") {
                 Serial.println('Moving to mid LED rail.')
-                // TODO: send sr_i
                 sr_i = 0;
                 maxPos = 3;
                 prevState = currState;
@@ -309,7 +325,6 @@ void calibrationLoop(String currState) {
                 } else if (prevState == "right") {
                     rightMidLEDPos = sr_j;
                 }
-                // TODO: send sr_i or sr_j
                 finished = true;
             }
         }
@@ -396,9 +411,13 @@ bool getInitialAppInput() {
             }
         } else if (toPerform == 'calibration') {
             // TODO: initialize LEDs based on foot size
-            footSize = int(strtok(NULL, ","));
+            footsize = int(strtok(NULL, ","));
             Serial.println('Got foot size from app: ');
-            Serial.print(footSize);
+            Serial.print(footsize);
+
+            sex = int(strtok(NULL, ","));
+            Serial.println('Got foot size from app: ');
+            Serial.print(sex);
         }
 
         newData = false;
@@ -445,7 +464,6 @@ void setup() {
 
 
 void loop() {
-    // NEED FOOT SIZE & SEX
     recvdAppInput = getInitialAppInput();
 
     if (recvdAppInput) {
