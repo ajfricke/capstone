@@ -2,6 +2,10 @@
 #include <Servo.h>
 
 //** GENERAL INITIALIZATIONS **//
+#define rxPin 2
+#define txPin 3
+SoftwareSerial serialComm = Bluetooth(txPin, rxPin);
+
 Servo myServo;
 int mode = 0; // 0 for waiting, 1 for calibration, 2 for probing
 
@@ -19,7 +23,7 @@ bool recvdAppData = true;
 
 //** CALIBRATION INITIALIZATIONS **//
 #define clockPin 9
-#define latchPin 10 // TODO: DUPLICATE PIN - change
+#define latchPin 11
 #define dataPin 12
 
 int sex;
@@ -53,7 +57,7 @@ int rightMidLEDPos = -1;
 #define motorInterfaceType 1 // indicates a driver
 #define servoPin 10
 #define interrupterPin1 A2
-#define interrupterPin2 // TODO: define
+#define interrupterPin2 A3
 
 #define mmPerRev 5
 #define oneMicrostepStepsPerRev 200
@@ -322,7 +326,7 @@ void probeLoop(String foot) {
 
             if (improperProbeCount == 3){
                 Serial.println("Monofilament is not exerting 10g force as determined by the photointerrupters after 3 tries. Exiting.");
-                // TODO: tell app we failed
+                serialComm.write(-1); // tell app we failed
                 resetMotors();
                 return;
             }
@@ -346,12 +350,12 @@ void probeLoop(String foot) {
             }
         }
         
-        // TODO: tell app that we're moving on to next location
+        serialComm.write(0); // tell app that we're moving on to next location
         delay(random(500, 2000)); // randomize timing between different location probing at intervals between 1-3s
     }
 
     Serial.println("Test finished. Resetting motors and exiting.");
-    // TODO: tell app we succeeded
+    serialComm.write(1); // tell app that the test finished
     resetMotors();
 }
 //** END **//
@@ -366,8 +370,8 @@ bool getInitialAppInput() {
     char rc;
 
     // receive data from the app
-    while (Serial.available() > 0 && newData == false) {
-        rc = Serial.read();
+    while (serialComm.available() > 0 && newData == false) {
+        rc = serialComm.read();
 
         if (recvInProgress == true) {
             if (rc != endMarker) {
@@ -428,8 +432,8 @@ bool getInitialAppInput() {
 
 
 byte getAppInput() {
-    if (Serial.available()>0) {
-        byte inputByte = Serial.read();
+    if (serialComm.available()>0) {
+        byte inputByte = serialComm.read();
         Serial.println('Received data from the app: ');
         Serial.print(inputByte);
 
@@ -441,6 +445,11 @@ byte getAppInput() {
 
 
 void setup() {
+    // setting up bluetooth module
+    pinMode(rxPin, INPUT);
+    pinMode(txPin, OUTPUT);
+    serialComm.begin(9600);
+    
     Serial.begin(9600);
     randomSeed(analogRead(5)); // randomize seed using noise from analog pin 5
 
