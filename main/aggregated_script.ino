@@ -26,8 +26,11 @@ bool recvdAppData = true;
 #define latchPin 11
 #define dataPin 12
 
-int sex;
+int sex; // 0 for female, 1 for male
 int footsize;
+
+// TODO: temporary. Update with actual values
+int footsizeToLED[10][2] = {{0, 0}, {1, 0}, {2, 0}, {3, 1}, {4, 1}, {5, 1}, {6, 2}, {7, 2}, {8, 3}, {9, 3}}
 
 int leftLEDs[10][4] = {{0,0,0,1}, {0,0,0,2}, {0,0,0,4}, {0,0,0,8},
 					   {0,0,0,16}, {0,0,0,32}, {0,0,0,64}, {0,0,0,128},
@@ -91,25 +94,25 @@ AccelStepper stepper300 = AccelStepper(motorInterfaceType, stepPin300, dirPin300
 
 
 //** CALIBRATION FUNCTIONS **//
-void intializeLEDs(String foot) {
+void initializeLEDs(String foot, int verticalPos, int horizPos) {
     digitalWrite(latchPin, LOW);
     if (foot == "left") {
         // light up LEDs for left foot
         for (int i = 0; i < 4; i++) {
-            shiftOut(dataPin, clockPin, MSBFIRST, leftMidLEDs[leftMidLEDPos][i] + leftLEDs[leftLEDPos][i]);
+            shiftOut(dataPin, clockPin, MSBFIRST, leftMidLEDs[horizPos][i] + leftLEDs[verticalPos][i]);
         }
     } else if (foot == "right") {
         // light up LEDs for right foot
         for (int i = 0; i < 4; i++) {
-            shiftOut(dataPin, clockPin, MSBFIRST, rightMidLEDs[rightLEDPos][i] + rightLEDs[rightLEDPos][i]);
+            shiftOut(dataPin, clockPin, MSBFIRST, rightMidLEDs[horizPos][i] + rightLEDs[verticalPos][i]);
         }
     }
     digitalWrite(latchPin, HIGH);
 }
 
 
-void calibrationLoop(String currState) {
-    int sr_i = 0
+void calibrationLoop(String currState, int verticalStartPos, int horizStartPos) {
+    int sr_i = verticalStartPos;
     int sr_j;
     int maxPos = 9
     int prevPos;
@@ -143,7 +146,7 @@ void calibrationLoop(String currState) {
         } else if (instruction == 2) { // rail confirmed
             if (currState == "left" or currState == "right") {
                 Serial.println('Moving to mid LED rail.')
-                sr_i = 0;
+                sr_i = horizStartPos;
                 maxPos = 3;
                 prevState = currState;
                 currState = "mid";
@@ -404,21 +407,21 @@ bool getInitialAppInput() {
         Serial.print(footInfo);
 
         if (toPerform == 'probe') {
-            if (footInfo == "left" || footInfo == "both") {
-                leftLEDPos = int(strtok(NULL, ","));
-                leftMidLEDPos = int(strtok(NULL, ","));
-            } else if (footInfo == "right" || footInfo == "both") {
+            if (footInfo == "right" || footInfo == "both") {
                 rightLEDPos = int(strtok(NULL, ","));
                 rightMidLEDPos = int(strtok(NULL, ","));
             }
+            if (footInfo == "left" || footInfo == "both") {
+                leftLEDPos = int(strtok(NULL, ","));
+                leftMidLEDPos = int(strtok(NULL, ","));
+            }
         } else if (toPerform == 'calibration') {
-            // TODO: initialize LEDs based on foot size
             footsize = int(strtok(NULL, ","));
             Serial.println('Got foot size from app: ');
             Serial.print(footsize);
 
             sex = int(strtok(NULL, ","));
-            Serial.println('Got foot size from app: ');
+            Serial.println('Got sex from app: ');
             Serial.print(sex);
         }
 
@@ -477,7 +480,6 @@ void loop() {
         if (toPerform == "calibrate") {
             mode = 1;
         } else if (toPerform == "probe") {
-            intializeLEDs();
             getProbingCoords();
             mode = 2;
         }
@@ -486,24 +488,37 @@ void loop() {
     if (mode == 0) { // waiting for app instructions
         continue;
     } else if (mode == 1) { // calibration
-        if (footInfo == "both") { // calibrate both feet
-            calibrationLoop("right");
-            delay(1000);
-            calibrationLoop("left");
-        } else { // calibrate only one foot
-            calibrationLoop(footInfo);
+        verticalLEDStartPos = footsizeToLED[footsize+sex-5][0];
+        horizLEDStartPos = footsizeToLED[footsize+sex-5][1];
+
+        if (footInfo == "both" || footInfo == "right") { // calibrate right foot
+            initializeLEDs("right", verticalLEDStartPos, horizLEDStartPos)
+            calibrationLoop("right", verticalLEDStartPos, horizLEDStartPos);
+        }
+        if (footInfo == "both" || footInfo == "left") { // calibrate left foot
+            initializeLEDs("left", verticalLEDStartPos, horizLEDStartPos)
+            calibrationLoop("left", verticalLEDStartPos, horizLEDStartPos);
         }
 
         mode = 0; // go back to waiting
     } else if (mode == 2) {
-        if (footInfo == "both") { // probe both feet
+        if (footInfo == "both" || footInfo == "right") { // probe right foot
+            initializeLEDs("right", rightLEDPos, rightMidLEDPos);
+            while (getAppInput() != 1) { // wait from confirmation from app
+                continue;
+            }
             probeLoop("right");
-            delay(1000);
-            probeLoop("left");
-        } else { // probe only one foot
-            probeLoop(footInfo);
         }
-        
+        if (footInfo == "both" || footInfo == "left") {
+            initializeLEDs("left", leftLEDPos, leftMidLEDPos);
+            while (getAppInput() != 1) { // wait from confirmation from app
+                continue;
+            }
+            probeLoop("left");
+        }
+
         mode = 0; // go back to waiting
     }
 }
+
+// TODO: implement feature that receives "kill switch" from app
