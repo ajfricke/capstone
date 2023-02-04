@@ -17,6 +17,33 @@ bool recvdAppData = true;
 //** END **//
 
 
+//** CALIBRATION INITIALIZATIONS **//
+#define clockPin 9
+#define latchPin 10 // TODO: DUPLICATE PIN - change
+#define dataPin 12
+
+int sex;
+int footsize;
+
+int leftLEDs[10][4] = {{0,0,0,1}, {0,0,0,2}, {0,0,0,4}, {0,0,0,8},
+					   {0,0,0,16}, {0,0,0,32}, {0,0,0,64}, {0,0,0,128},
+                  	   {0,0,1,0}, {0,0,2,0}};
+
+int rightLEDs[10][4] = {{0,0,4,0}, {0,0,8,0}, {0,0,16,0}, {0,0,32,0}, 
+					    {0,0,64,0}, {0,0,128,0}, {0,1,0,0}, {0,2,0,0}, 
+					    {0,4,0,0}, {0,8,0,0}};
+
+int leftMidLEDs[4][4] = {{1,0,0,0}, {2,0,0,0}, {4,0,0,0}, {8,0,0,0}};
+
+int rightMidLEDs[4][4] = {{16,0,0,0}, {32,0,0,0}, {64,0,0,0}, {128,0,0,0}};
+
+int leftLEDPos = -1;
+int rightLEDPos = -1;
+int leftMidLEDPos = -1;
+int rightMidLEDPos = -1;
+//** END ** //
+
+
 //** PROBING INITIALIZATIONS **//
 // define pins
 #define dirPin100 4
@@ -59,31 +86,108 @@ AccelStepper stepper300 = AccelStepper(motorInterfaceType, stepPin300, dirPin300
 //** END **//
 
 
-//** CALIBRATION INITIALIZATIONS **//
-#define clockPin 9
-#define latchPin 10 // TODO: DUPLICATE PIN - change
-#define dataPin 12
+//** CALIBRATION FUNCTIONS **//
+void intializeLEDs(String foot) {
+    digitalWrite(latchPin, LOW);
+    if (foot == "left") {
+        // light up LEDs for left foot
+        for (int i = 0; i < 4; i++) {
+            shiftOut(dataPin, clockPin, MSBFIRST, leftMidLEDs[leftMidLEDPos][i] + leftLEDs[leftLEDPos][i]);
+        }
+    } else if (foot == "right") {
+        // light up LEDs for right foot
+        for (int i = 0; i < 4; i++) {
+            shiftOut(dataPin, clockPin, MSBFIRST, rightMidLEDs[rightLEDPos][i] + rightLEDs[rightLEDPos][i]);
+        }
+    }
+    digitalWrite(latchPin, HIGH);
+}
 
-int sex;
-int footsize;
 
-int leftLEDs[10][4] = {{0,0,0,1}, {0,0,0,2}, {0,0,0,4}, {0,0,0,8},
-					   {0,0,0,16}, {0,0,0,32}, {0,0,0,64}, {0,0,0,128},
-                  	   {0,0,1,0}, {0,0,2,0}};
+void calibrationLoop(String currState) {
+    int sr_i = 0
+    int sr_j;
+    int maxPos = 9
+    int prevPos;
+    bool finished = false;
+    bool moveLED = false;
+    String prevState;
+    byte instruction = -1;
 
-int rightLEDs[10][4] = {{0,0,4,0}, {0,0,8,0}, {0,0,16,0}, {0,0,32,0}, 
-					    {0,0,64,0}, {0,0,128,0}, {0,1,0,0}, {0,2,0,0}, 
-					    {0,4,0,0}, {0,8,0,0}};
+    while (finished == false) {
+        Serial.println('Starting calibration.')
+        instruction = getAppInput(); 
 
-int leftMidLEDs[4][4] = {{1,0,0,0}, {2,0,0,0}, {4,0,0,0}, {8,0,0,0}};
+        if (instruction == -1) {
+            continue;
+        } else if (instruction == 0) { // move LED inwards
+            Serial.println('Moving LED inwards.')
+            if (sr_i != 0) {
+                sr_i--;
+            } else {
+                sr_i = maxPos;
+            }
+            moveLED = true;
+        } else if (instruction == 1) { // move LED outwards
+            Serial.println('Moving LED outwards.')
+            if (sr_i != maxPos) {
+                sr_i++;
+            } else {
+                sr_i = 0;
+            }
+            moveLED = true;
+        } else if (instruction == 2) { // rail confirmed
+            if (currState == "left" or currState == "right") {
+                Serial.println('Moving to mid LED rail.')
+                sr_i = 0;
+                maxPos = 3;
+                prevState = currState;
+                currState = "mid";
+                prevPos = sr_i;
+                if (currState == "left") {
+                    leftLEDPos = sr_i;
+                } else if (currState == "right") {
+                    rightLEDPos = sr_i;
+                }
+            } else if (currState == "mid") {
+                Serial.println('Finished calibration.')
+                if (prevState == "left") {
+                    leftMidLEDPos = sr_i;
+                } else if (prevState == "right") {
+                    rightMidLEDPos = sr_j;
+                }
+                finished = true;
+            }
+        }
 
-int rightMidLEDs[4][4] = {{16,0,0,0}, {32,0,0,0}, {64,0,0,0}, {128,0,0,0}};
-
-int leftLEDPos = -1;
-int rightLEDPos = -1;
-int leftMidLEDPos = -1;
-int rightMidLEDPos = -1;
-//** END ** //
+        // move the LED
+        if (moveLED) {
+            digitalWrite(latchPin, LOW);
+            if (currState == "left") {
+                for (int i = 0; i < 4; i++) {
+                    shiftOut(dataPin, clockPin, MSBFIRST, leftLEDs[sr_i][i]);
+                }
+            } else if (currState == "right") {
+                for (int i = 0; i < 4; i++) {
+                    shiftOut(dataPin, clockPin, MSBFIRST, rightLEDs[sr_i][i]);
+                }
+            } else if (currState == "mid") {
+                if (prevState == "left") {
+                    for (int i = 0; i < 4; i++) {
+                        shiftOut(dataPin, clockPin, MSBFIRST, leftMidLEDs[sr_i][i] + leftLEDs[prevPos][i]);
+                    }
+                } else if (prevState == "right") {
+                    sr_j = 3-sr_i;
+                    for (int i = 0; i < 4; i++) {
+                        shiftOut(dataPin, clockPin, MSBFIRST, rightMidLEDs[sr_j][i] + rightLEDs[prevPos][i]);
+                    }
+                }
+            }
+            digitalWrite(latchPin, HIGH);
+        }
+    }  
+}
+//** END **//
 
 
 //** PROBING FUNCTIONS **//
@@ -232,12 +336,10 @@ void probeLoop(String foot) {
             
             
             // wait for user response, otherwise will be marked as no
-            // TODO: implement comm from app
             while((currMillis - prevMillis < 2000) || response == 1) {
+                response = getAppInput();
                 currMillis = millis();
-                getAppResponse();
             }
-            delay(2000);
 
             if (j != 2) {
                 delay(random(500, 2000)); // randomize timing between same location probing at intervals between 1-3s
@@ -251,110 +353,6 @@ void probeLoop(String foot) {
     Serial.println("Test finished. Resetting motors and exiting.");
     // TODO: tell app we succeeded
     resetMotors();
-}
-//** END **//
-
-
-//** CALIBRATION FUNCTIONS **//
-void intializeLEDs(String foot) {
-    digitalWrite(latchPin, LOW);
-    if (foot == "left") {
-        // light up LEDs for left foot
-        for (int i = 0; i < 4; i++) {
-            shiftOut(dataPin, clockPin, MSBFIRST, leftMidLEDs[leftMidLEDPos][i] + leftLEDs[leftLEDPos][i]);
-        }
-    } else if (foot == "right") {
-        // light up LEDs for right foot
-        for (int i = 0; i < 4; i++) {
-            shiftOut(dataPin, clockPin, MSBFIRST, rightMidLEDs[rightLEDPos][i] + rightLEDs[rightLEDPos][i]);
-        }
-    }
-    digitalWrite(latchPin, HIGH);
-}
-
-
-void calibrationLoop(String currState) {
-    int sr_i = 0
-    int sr_j;
-    int maxPos = 9
-    int prevPos;
-    bool finished = false;
-    bool moveLED = false;
-    String prevState;
-    byte instruction = -1;
-
-    while (finished == false) {
-        Serial.println('Starting calibration.')
-        instruction = getCalibrationInstruc(); 
-
-        if (instruction == -1) {
-            continue;
-        } else if (instruction == 0) { // move LED inwards
-            Serial.println('Moving LED inwards.')
-            if (sr_i != 0) {
-                sr_i--;
-            } else {
-                sr_i = maxPos;
-            }
-            moveLED = true;
-        } else if (instruction == 1) { // move LED outwards
-            Serial.println('Moving LED outwards.')
-            if (sr_i != maxPos) {
-                sr_i++;
-            } else {
-                sr_i = 0;
-            }
-            moveLED = true;
-        } else if (instruction == 2) { // rail confirmed
-            if (currState == "left" or currState == "right") {
-                Serial.println('Moving to mid LED rail.')
-                sr_i = 0;
-                maxPos = 3;
-                prevState = currState;
-                currState = "mid";
-                prevPos = sr_i;
-                if (currState == "left") {
-                    leftLEDPos = sr_i;
-                } else if (currState == "right") {
-                    rightLEDPos = sr_i;
-                }
-            } else if (currState == "mid") {
-                Serial.println('Finished calibration.')
-                if (prevState == "left") {
-                    leftMidLEDPos = sr_i;
-                } else if (prevState == "right") {
-                    rightMidLEDPos = sr_j;
-                }
-                finished = true;
-            }
-        }
-
-        // move the LED
-        if (moveLED) {
-            digitalWrite(latchPin, LOW);
-            if (currState == "left") {
-                for (int i = 0; i < 4; i++) {
-                    shiftOut(dataPin, clockPin, MSBFIRST, leftLEDs[sr_i][i]);
-                }
-            } else if (currState == "right") {
-                for (int i = 0; i < 4; i++) {
-                    shiftOut(dataPin, clockPin, MSBFIRST, rightLEDs[sr_i][i]);
-                }
-            } else if (currState == "mid") {
-                if (prevState == "left") {
-                    for (int i = 0; i < 4; i++) {
-                        shiftOut(dataPin, clockPin, MSBFIRST, leftMidLEDs[sr_i][i] + leftLEDs[prevPos][i]);
-                    }
-                } else if (prevState == "right") {
-                    sr_j = 3-sr_i;
-                    for (int i = 0; i < 4; i++) {
-                        shiftOut(dataPin, clockPin, MSBFIRST, rightMidLEDs[sr_j][i] + rightLEDs[prevPos][i]);
-                    }
-                }
-            }
-            digitalWrite(latchPin, HIGH);
-        }
-    }  
 }
 //** END **//
 
@@ -429,7 +427,7 @@ bool getInitialAppInput() {
 }
 
 
-byte getCalibrationInstruc() {
+byte getAppInput() {
     if (Serial.available()>0) {
         byte inputByte = Serial.read();
         Serial.println('Received data from the app: ');
