@@ -2,7 +2,7 @@
 // To start, app should send a string formatted as follows "calibrate,foot,footsize,sex",
 // where foot is left/right/both, footsize is a number, and sex is 0 for female or 1 for male
 // Example: "calibrate,left,10,1"
-// Sending this in, the starting LEDs should turn on. If you calibrate both feet, it'll start with right
+// Sending this in, the starting LEDs should turn on. If you calibrate both feet, it"ll start with right
 // Now you should be able to send commands to move the LEDs:
 // for vertical LED, send 0 for down and 1 for up
 // for horizontal LED, send 2 for inwards and 3 for outwards
@@ -13,9 +13,7 @@
 // If both was specified, calibration for left foot will begin, otherwise Arduino will go back to waiting
 // In waiting mode, you can send another string of starting information to run again
 
-
-#include <AccelStepper.h>
-#include <Servo.h>
+#include <SoftwareSerial.h>
 
 // for HC-05 Bluetooth Module
 #define rxBluetoothPin 2 
@@ -26,9 +24,8 @@
 #define latchPin 11
 #define dataPin 12
 
-SoftwareSerial serialComm = Bluetooth(txBluetoothPin, rxBluetoothPin);
+SoftwareSerial serialComm (txBluetoothPin, rxBluetoothPin);
 
-Servo myServo;
 int mode = 0; // 0 for waiting, 1 for calibration, 2 for probing
 
 const byte numChars = 32;
@@ -39,7 +36,7 @@ String footInfo;
 String toPerform;
 
 bool newData = false;
-bool recvdAppData = true;
+bool recvdAppInput = false;
 
 int sex; // 0 for female, 1 for male
 int footsize;
@@ -90,45 +87,45 @@ void calibrationLoop(String foot, int verticalStartPos, int horizStartPos) {
     byte instruction = -1;
 
     while (finished == false) {
-        Serial.println('Starting calibration.');
+        Serial.println("Starting calibration.");
         instruction = getAppInput(); 
 
         if (instruction == -1) {
             continue;
         } else if (instruction == 0) { // move vertical LED down
-            Serial.println('Moving vertical LED inwards.');
+            Serial.println("Moving vertical LED inwards.");
             if (verticalPos != 0) {
                 verticalPos--;
             } else {
-                Serial.println('Hit first LED. Move outwards or confirm.');
+                Serial.println("Hit first LED. Move outwards or confirm.");
             }
             moveLED = true;
         } else if (instruction == 1) { // move vertical LED up
-            Serial.println('Moving vertical LED outwards.');
+            Serial.println("Moving vertical LED outwards.");
             if (verticalPos != 8) {
                 verticalPos++;
             } else {
-                Serial.println('Hit last LED. Move inwards or confirm.');
+                Serial.println("Hit last LED. Move inwards or confirm.");
             }
             moveLED = true;
         } else if (instruction == 2) { // move horizontal LED inwards
-            Serial.println('Moving horizontal LED inwards.');
+            Serial.println("Moving horizontal LED inwards.");
             if (horizPos != 0) {
                 horizPos--;
             } else {
-                Serial.println('Hit first LED. Move outwards or confirm.');
+                Serial.println("Hit first LED. Move outwards or confirm.");
             }
             moveLED = true;
         } else if (instruction == 3) { // move horizontal LED outwards
-            Serial.println('Moving horizontal LED outwards.');
+            Serial.println("Moving horizontal LED outwards.");
             if (horizPos != 3) {
                 horizPos--;
             } else {
-                Serial.println('Hit first LED. Move outwards or confirm.');
+                Serial.println("Hit first LED. Move outwards or confirm.");
             }
             moveLED = true;
         } else if (instruction == 4) { // rail confirmed
-            Serial.println('Finished calibration. Sending info to app.')
+            Serial.println("Finished calibration. Sending info to app.");
             serialComm.write(verticalPos);
             serialComm.write(horizPos);
             if (foot == "left") {
@@ -149,7 +146,6 @@ void calibrationLoop(String foot, int verticalStartPos, int horizStartPos) {
                     shiftOut(dataPin, clockPin, MSBFIRST, leftMidLEDs[horizPos][i] + rightLEDs[verticalPos][i]);
                 }
             } else if (foot == "right") {
-                sr_j = 3-sr_i;
                 for (int i = 0; i < 4; i++) {
                     shiftOut(dataPin, clockPin, MSBFIRST, rightMidLEDs[horizPos][i] + leftLEDs[verticalPos][i]);
                 }
@@ -197,14 +193,14 @@ bool getInitialAppInput() {
         char * strtokIndx; // used by strtok() as an index
 
         toPerform = strtok(tempChars, ","); // probe or calibration
-        Serial.println('Got info on what to perform from app: ');
+        Serial.println("Got info on what to perform from app: ");
         Serial.print(toPerform);
 
         footInfo = strtok(NULL, ","); // left, right, or both
-        Serial.println('Got foot info from app: ');
+        Serial.println("Got foot info from app: ");
         Serial.print(footInfo);
 
-        if (toPerform == 'probe') {
+        if (toPerform == "probe") {
             if (footInfo == "right" || footInfo == "both") {
                 rightLEDPos = int(strtok(NULL, ","));
                 rightMidLEDPos = int(strtok(NULL, ","));
@@ -213,13 +209,13 @@ bool getInitialAppInput() {
                 leftLEDPos = int(strtok(NULL, ","));
                 leftMidLEDPos = int(strtok(NULL, ","));
             }
-        } else if (toPerform == 'calibration') {
+        } else if (toPerform == "calibration") {
             footsize = int(strtok(NULL, ","));
-            Serial.println('Got foot size from app: ');
+            Serial.println("Got foot size from app: ");
             Serial.print(footsize);
 
             sex = int(strtok(NULL, ","));
-            Serial.println('Got sex from app: ');
+            Serial.println("Got sex from app: ");
             Serial.print(sex);
         }
 
@@ -235,7 +231,7 @@ bool getInitialAppInput() {
 byte getAppInput() {
     if (serialComm.available()>0) {
         byte inputByte = serialComm.read();
-        Serial.println('Received data from the app: ');
+        Serial.println("Received data from the app: ");
         Serial.print(inputByte);
 
         return inputByte;
@@ -247,8 +243,8 @@ byte getAppInput() {
 
 void setup() {
     // setting up bluetooth module
-    pinMode(rxPin, INPUT);
-    pinMode(txPin, OUTPUT);
+    pinMode(rxBluetoothPin, INPUT);
+    pinMode(txBluetoothPin, OUTPUT);
     serialComm.begin(9600);
     Serial.begin(9600);
 
@@ -260,23 +256,20 @@ void setup() {
 
 
 void loop() {
-    Serial.println("BEGIN")
+    Serial.println("BEGIN");
     recvdAppInput = getInitialAppInput();
 
     if (recvdAppInput) {
         if (toPerform == "calibrate") {
             mode = 1;
-        } else if (toPerform == "probe") {
-            getProbingCoords();
-            mode = 2;
         }
     }
 
     if (mode == 0) { // waiting for app instructions
-        continue;
+        return;
     } else if (mode == 1) { // calibration
-        verticalLEDStartPos = footsizeToLED[footsize+sex-5][0];
-        horizLEDStartPos = footsizeToLED[footsize+sex-5][1];
+        int verticalLEDStartPos = footsizeToLED[footsize+sex-5][0];
+        int horizLEDStartPos = footsizeToLED[footsize+sex-5][1];
 
         if (footInfo == "both" || footInfo == "right") { // calibrate right foot
             initializeLEDs("right", verticalLEDStartPos, horizLEDStartPos);
@@ -285,23 +278,6 @@ void loop() {
         if (footInfo == "both" || footInfo == "left") { // calibrate left foot
             initializeLEDs("left", verticalLEDStartPos, horizLEDStartPos);
             calibrationLoop("left", verticalLEDStartPos, horizLEDStartPos);
-        }
-
-        mode = 0; // go back to waiting
-    } else if (mode == 2) {
-        if (footInfo == "both" || footInfo == "right") { // probe right foot
-            initializeLEDs("right", rightLEDPos, rightMidLEDPos);
-            while (getAppInput() != 1) { // wait from confirmation from app
-                continue;
-            }
-            probeLoop("right");
-        }
-        if (footInfo == "both" || footInfo == "left") {
-            initializeLEDs("left", leftLEDPos, leftMidLEDPos);
-            while (getAppInput() != 1) { // wait from confirmation from app
-                continue;
-            }
-            probeLoop("left");
         }
 
         mode = 0; // go back to waiting
