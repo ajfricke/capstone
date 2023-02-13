@@ -8,7 +8,6 @@
 SoftwareSerial serialComm (txBluetoothPin, rxBluetoothPin);
 
 Servo myServo;
-int mode = 0; // 0 for waiting, 1 for calibration, 2 for probing
 
 const byte numChars = 32;
 char receivedChars[numChars];
@@ -111,6 +110,40 @@ void initializeLEDs(String foot, int verticalPos, int horizPos) {
 }
 
 
+void updateFootsize(int trueVertPos, int trueHorizPos, int estVertPos, int estHorizPos) {
+    int horizIdxRange[4][2] = {{0, 1}, {2, 3}, {4, 6}, {7, 9}};
+    Serial.println("Checking if we need to update footsize.");
+    Serial.println("Old footsize: " + String(footsize))
+    Serial.println("Estimated LED positions are (" + String(estVertPos) + ", " + String(estHorizPos) + ").")
+    Serial.println("True LED positions are (" + String(trueVertPos) + ", " + String(trueHorizPos) + ").")
+    
+    if (trueVertPos == estVertPos && trueHorizPos == estHorizPos) {
+        // CASE #1: true positions are equivalent to estimated - no need to update
+        footsize = footsize;
+    // CASE #2: vertical and horizontal positions line up correctly for a new foot size - update
+    } else if ((trueHorizPos < 3) && (footsizeToLED[trueVertPos][1] == trueHorizPos)) { // covers first 7 LED combos
+        footsize = trueVertPos-sex+5;
+    } else if ((footsizeToLED[trueVertPos+1][1] == 3)) { // covers last 3 LED combos
+        footsize = trueVertPos+1-sex+5;
+
+    // CASE #3: vertical and horizontal positions do not line up - update, favouring horizontal position
+    } else {
+        if ((trueVertPos - footsizeToLED[horizIdxRange[trueHorizPos][0]][0]) == -1) {
+            footsize = horizIdxRange[trueHorizPos][0]-sex+5;
+        } else if ((trueVertPos - footsizeToLED[horizIdxRange[trueHorizPos][0]][0]) < -1) {
+            footsize = horizIdxRange[trueHorizPos-1][0]-sex+5;
+        } else if ((trueVertPos - footsizeToLED[horizIdxRange[trueHorizPos][1]][0]) == 1) {
+            footsize = horizIdxRange[trueHorizPos][1]-sex+5;
+        } else if ((trueVertPos - footsizeToLED[horizIdxRange[trueHorizPos][1]][0]) > 2) {
+            footsize = horizIdxRange[trueHorizPos+1][1]-sex+5;
+        }
+    }
+
+    Serial.println("New footsize: " + String(footsize));
+    Serial.println("Which is associated with LED positions (" + String(footsizeToLED[footsize+sex-5][0]) + ", " + String(footsizeToLED[footsize+sex-5][1]) + ").");
+}
+
+
 void calibrationLoop(String foot, int verticalStartPos, int horizStartPos) {
     int verticalPos = verticalStartPos;
     int horizPos = horizStartPos;
@@ -158,8 +191,6 @@ void calibrationLoop(String foot, int verticalStartPos, int horizStartPos) {
             moveLED = true;
         } else if (instruction == 4) { // rail confirmed
             Serial.println("Finished calibration.");
-            serialComm.write(verticalPos);
-            serialComm.write(horizPos);
             if (foot == "left") {
                 rightLEDPos = verticalPos;
                 leftMidLEDPos = horizPos;
@@ -167,6 +198,11 @@ void calibrationLoop(String foot, int verticalStartPos, int horizStartPos) {
                 leftLEDPos = verticalPos;
                 rightMidLEDPos = horizPos;
             }
+            updateFootsize(verticalPos, horizPos, verticalStartPos, horizStartPos);
+            serialComm.write(verticalPos);
+            serialComm.write(horizPos);
+            serialComn.write(footisze);
+            
             finished = true;
         }
 
@@ -397,23 +433,23 @@ bool getInitialAppInput() {
         Serial.println("Got foot info from app: ");
         Serial.print(footInfo);
 
+        footsize = int(strtok(NULL, ","));
+        Serial.println("Got foot size from app: ");
+        Serial.print(footsize);
+
+        sex = int(strtok(NULL, ","));
+        Serial.println("Got sex from app: ");
+        Serial.print(sex);
+
         if (toPerform == "probe") {
             if (footInfo == "right" || footInfo == "both") {
-                rightLEDPos = int(strtok(NULL, ","));
+                leftLEDPos = int(strtok(NULL, ","));
                 rightMidLEDPos = int(strtok(NULL, ","));
             }
             if (footInfo == "left" || footInfo == "both") {
-                leftLEDPos = int(strtok(NULL, ","));
+                rightLEDPos = int(strtok(NULL, ","));
                 leftMidLEDPos = int(strtok(NULL, ","));
             }
-        } else if (toPerform == "calibration") {
-            footsize = int(strtok(NULL, ","));
-            Serial.println("Got foot size from app: ");
-            Serial.print(footsize);
-
-            sex = int(strtok(NULL, ","));
-            Serial.println("Got sex from app: ");
-            Serial.print(sex);
         }
 
         newData = false;
@@ -469,47 +505,37 @@ void loop() {
 
     if (recvdAppInput) {
         if (toPerform == "calibrate") {
-            mode = 1;
+            int verticalLEDStartPos = footsizeToLED[footsize+sex-5][0];
+            int horizLEDStartPos = footsizeToLED[footsize+sex-5][1];
+            if (footInfo == "both" || footInfo == "right") { // calibrate right foot
+                initializeLEDs("right", verticalLEDStartPos, horizLEDStartPos);
+                calibrationLoop("right", verticalLEDStartPos, horizLEDStartPos);
+            }
+            if (footInfo == "both" || footInfo == "left") { // calibrate left foot
+                initializeLEDs("left", verticalLEDStartPos, horizLEDStartPos);
+                calibrationLoop("left", verticalLEDStartPos, horizLEDStartPos);
+            }
+
+            toPerform = "";
         } else if (toPerform == "probe") {
             getProbingCoords();
-            mode = 2;
-        }
-    }
 
-    if (mode == 0) { //  waiting for app instructions
-        return;
-    } else if (mode == 1) { // calibration
-        int verticalLEDStartPos = footsizeToLED[footsize+sex-5][0];
-        int horizLEDStartPos = footsizeToLED[footsize+sex-5][1];
-
-        if (footInfo == "both" || footInfo == "right") { // calibrate right foot
-            initializeLEDs("right", verticalLEDStartPos, horizLEDStartPos);
-            calibrationLoop("right", verticalLEDStartPos, horizLEDStartPos);
-        }
-        if (footInfo == "both" || footInfo == "left") { // calibrate left foot
-            initializeLEDs("left", verticalLEDStartPos, horizLEDStartPos);
-            calibrationLoop("left", verticalLEDStartPos, horizLEDStartPos);
-        }
-
-        mode = 0; // go back to waiting
-    } else if (mode == 2) {
-        if (footInfo == "both" || footInfo == "right") { // probe right foot
-            initializeLEDs("right", rightLEDPos, rightMidLEDPos);
-            while (getAppInput() != 1) { // wait from confirmation from app
-                continue;
+            if (footInfo == "both" || footInfo == "right") { // probe right foot
+                initializeLEDs("right", leftLEDPos, rightMidLEDPos);
+                while (getAppInput() != 1) { // wait from confirmation from app
+                    continue;
+                }
+                probeLoop("right");
             }
-            probeLoop("right");
-        }
-        if (footInfo == "both" || footInfo == "left") {
-            initializeLEDs("left", leftLEDPos, leftMidLEDPos);
-            while (getAppInput() != 1) { // wait from confirmation from app
-                continue;
+            if (footInfo == "both" || footInfo == "left") {
+                initializeLEDs("left", rightLEDPos, leftMidLEDPos);
+                while (getAppInput() != 1) { // wait from confirmation from app
+                    continue;
+                }
+                probeLoop("left");
             }
-            probeLoop("left");
-        }
 
-        mode = 0; // go back to waiting
+            toPerform = "";
+        }
     }
 }
-
-// TODO: implement feature that receives "kill switch" from app
