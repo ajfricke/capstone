@@ -70,7 +70,7 @@ int rightMidLEDPos = -1;
 #define strokeStepMM 2
 #define delayMS 100
 
-bit response;
+byte response = -1;
 unsigned long currMillis;
 unsigned long prevMillis;
 
@@ -113,9 +113,9 @@ void initializeLEDs(String foot, int verticalPos, int horizPos) {
 void updateFootsize(int trueVertPos, int trueHorizPos, int estVertPos, int estHorizPos) {
     int horizIdxRange[4][2] = {{0, 1}, {2, 3}, {4, 6}, {7, 9}};
     Serial.println("Checking if we need to update footsize.");
-    Serial.println("Old footsize: " + String(footsize))
-    Serial.println("Estimated LED positions are (" + String(estVertPos) + ", " + String(estHorizPos) + ").")
-    Serial.println("True LED positions are (" + String(trueVertPos) + ", " + String(trueHorizPos) + ").")
+    Serial.println("Old footsize: " + String(footsize));
+    Serial.println("Estimated LED positions are (" + String(estVertPos) + ", " + String(estHorizPos) + ").");
+    Serial.println("True LED positions are (" + String(trueVertPos) + ", " + String(trueHorizPos) + ").");
     
     if (trueVertPos == estVertPos && trueHorizPos == estHorizPos) {
         // CASE #1: true positions are equivalent to estimated - no need to update
@@ -189,7 +189,7 @@ void calibrationLoop(String foot, int verticalStartPos, int horizStartPos) {
                 Serial.println("Hit first LED. Move outwards or confirm.");
             }
             moveLED = true;
-        } else if (instruction == 4) { // rail confirmed
+        } else if (instruction == 4) { // LEDs confirmed
             Serial.println("Finished calibration.");
             if (foot == "left") {
                 rightLEDPos = verticalPos;
@@ -201,7 +201,7 @@ void calibrationLoop(String foot, int verticalStartPos, int horizStartPos) {
             updateFootsize(verticalPos, horizPos, verticalStartPos, horizStartPos);
             serialComm.write(verticalPos);
             serialComm.write(horizPos);
-            serialComn.write(footisze);
+            serialComm.write(footsize);
             
             finished = true;
         }
@@ -370,7 +370,7 @@ void probeLoop(String foot) {
             currMillis = millis();
             
             // wait for user response, otherwise will be marked as no
-            while((currMillis - prevMillis < 2000) || response == 1) {
+            while((currMillis - prevMillis < 2000) && response != 1) {
                 response = getAppInput();
                 currMillis = millis();
             }
@@ -380,7 +380,7 @@ void probeLoop(String foot) {
             }
         }
         
-        serialComm.write(0); // tell app that we"re moving on to next location
+        serialComm.write((byte) 0x00); // tell app that we"re moving on to next location
         delay(random(500, 2000)); // randomize timing between different location probing at intervals between 1-3s
     }
 
@@ -505,8 +505,8 @@ void loop() {
 
     if (recvdAppInput) {
         if (toPerform == "calibrate") {
-            int verticalLEDStartPos = footsizeToLED[footsize+sex-5][0];
-            int horizLEDStartPos = footsizeToLED[footsize+sex-5][1];
+            byte verticalLEDStartPos = footsizeToLED[footsize+sex-5][0];
+            byte horizLEDStartPos = footsizeToLED[footsize+sex-5][1];
             if (footInfo == "both" || footInfo == "right") { // calibrate right foot
                 initializeLEDs("right", verticalLEDStartPos, horizLEDStartPos);
                 calibrationLoop("right", verticalLEDStartPos, horizLEDStartPos);
