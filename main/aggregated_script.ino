@@ -1,12 +1,7 @@
 #include <AccelStepper.h>
 #include <Servo.h>
-#include <SoftwareSerial.h>
 
 //** GENERAL INITIALIZATIONS **//
-#define rxBluetoothPin 2
-#define txBluetoothPin 3
-SoftwareSerial serialComm (txBluetoothPin, rxBluetoothPin);
-
 Servo myServo;
 
 const byte numChars = 32;
@@ -26,27 +21,27 @@ bool recvdAppInput = false;
 #define latchPin 11
 #define dataPin 12
 
-int sex; // 0 for female, 1 for male
-int footsize;
+byte sex; // 0 for female, 1 for male
+byte footsize;
 
-int footsizeToLED[10][2] = {{0, 0}, {1, 0}, {2, 1}, {3, 1}, {4, 2}, {5, 2}, {6, 2}, {6, 3}, {7, 3}, {8, 3}};
+byte footsizeToLED[10][2] = {{0, 0}, {1, 0}, {2, 1}, {3, 1}, {4, 2}, {5, 2}, {6, 2}, {6, 3}, {7, 3}, {8, 3}};
 
-int leftLEDs[9][4] = {{0,0,0,1}, {0,0,0,2}, {0,0,0,4}, {0,0,0,8},
+byte leftLEDs[9][4] = {{0,0,0,1}, {0,0,0,2}, {0,0,0,4}, {0,0,0,8},
 					   {0,0,0,16}, {0,0,0,32}, {0,0,0,64}, {0,0,0,128},
                   	   {0,0,1,0}};
 
-int rightLEDs[9][4] = {{0,0,4,0}, {0,0,8,0}, {0,0,16,0}, {0,0,32,0}, 
+byte rightLEDs[9][4] = {{0,0,4,0}, {0,0,8,0}, {0,0,16,0}, {0,0,32,0}, 
 					    {0,0,64,0}, {0,0,128,0}, {0,1,0,0}, {0,2,0,0}, 
 					    {0,4,0,0}};
 
-int leftMidLEDs[4][4] = {{8,0,0,0}, {4,0,0,0}, {2,0,0,0}, {1,0,0,0}};
+byte leftMidLEDs[4][4] = {{8,0,0,0}, {4,0,0,0}, {2,0,0,0}, {1,0,0,0}};
 
-int rightMidLEDs[4][4] = {{16,0,0,0}, {32,0,0,0}, {64,0,0,0}, {128,0,0,0}};
+byte rightMidLEDs[4][4] = {{16,0,0,0}, {32,0,0,0}, {64,0,0,0}, {128,0,0,0}};
 
-int leftLEDPos = -1;
-int rightLEDPos = -1;
-int leftMidLEDPos = -1;
-int rightMidLEDPos = -1;
+byte leftLEDPos = -1;
+byte rightLEDPos = -1;
+byte leftMidLEDPos = -1;
+byte rightMidLEDPos = -1;
 //** END ** //
 
 
@@ -93,16 +88,16 @@ AccelStepper stepper300 = AccelStepper(motorInterfaceType, stepPin300, dirPin300
 
 
 //** CALIBRATION FUNCTIONS **//
-void initializeLEDs(String foot, int verticalPos, int horizPos) {
+void initializeLEDs(String foot, byte verticalPos, byte horizPos) {
     digitalWrite(latchPin, LOW);
     if (foot == "left") {
         // light up LEDs for left foot
-        for (int i = 0; i < 4; i++) {
+        for (byte i = 0; i < 4; i++) {
             shiftOut(dataPin, clockPin, MSBFIRST, leftMidLEDs[horizPos][i] + rightLEDs[verticalPos][i]);
         }
     } else if (foot == "right") {
         // light up LEDs for right foot
-        for (int i = 0; i < 4; i++) {
+        for (byte i = 0; i < 4; i++) {
             shiftOut(dataPin, clockPin, MSBFIRST, rightMidLEDs[horizPos][i] + leftLEDs[verticalPos][i]);
         }
     }
@@ -110,8 +105,8 @@ void initializeLEDs(String foot, int verticalPos, int horizPos) {
 }
 
 
-void updateFootsize(int trueVertPos, int trueHorizPos, int estVertPos, int estHorizPos) {
-    int horizIdxRange[4][2] = {{0, 1}, {2, 3}, {4, 6}, {7, 9}};
+void updateFootsize(byte trueVertPos, byte trueHorizPos, byte estVertPos, byte estHorizPos) {
+    byte horizIdxRange[4][2] = {{0, 1}, {2, 3}, {4, 6}, {7, 9}};
     Serial.println("Checking if we need to update footsize.");
     Serial.println("Old footsize: " + String(footsize));
     Serial.println("Estimated LED positions are (" + String(estVertPos) + ", " + String(estHorizPos) + ").");
@@ -144,15 +139,14 @@ void updateFootsize(int trueVertPos, int trueHorizPos, int estVertPos, int estHo
 }
 
 
-void calibrationLoop(String foot, int verticalStartPos, int horizStartPos) {
-    int verticalPos = verticalStartPos;
-    int horizPos = horizStartPos;
+void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
+    byte verticalPos = verticalStartPos;
+    byte horizPos = horizStartPos;
     bool finished = false;
     bool moveLED = false;
     byte instruction = -1;
 
     while (finished == false) {
-        Serial.println("Starting calibration.");
         instruction = getAppInput(); 
 
         if (instruction == -1) {
@@ -199,9 +193,9 @@ void calibrationLoop(String foot, int verticalStartPos, int horizStartPos) {
                 rightMidLEDPos = horizPos;
             }
             updateFootsize(verticalPos, horizPos, verticalStartPos, horizStartPos);
-            serialComm.write(verticalPos);
-            serialComm.write(horizPos);
-            serialComm.write(footsize);
+            Serial.write(verticalPos);
+            Serial.write(horizPos);
+            Serial.write(footsize);
             
             finished = true;
         }
@@ -210,11 +204,11 @@ void calibrationLoop(String foot, int verticalStartPos, int horizStartPos) {
         if (moveLED) {
             digitalWrite(latchPin, LOW);
             if (foot == "left") {
-                for (int i = 0; i < 4; i++) {
+                for (byte i = 0; i < 4; i++) {
                     shiftOut(dataPin, clockPin, MSBFIRST, leftMidLEDs[horizPos][i] + rightLEDs[verticalPos][i]);
                 }
             } else if (foot == "right") {
-                for (int i = 0; i < 4; i++) {
+                for (byte i = 0; i < 4; i++) {
                     shiftOut(dataPin, clockPin, MSBFIRST, rightMidLEDs[horizPos][i] + leftLEDs[verticalPos][i]);
                 }
             }
@@ -230,13 +224,13 @@ void calibrationLoop(String foot, int verticalStartPos, int horizStartPos) {
 void getProbingCoords() {
     // determine the coordinates for each probing location
     if ((sex == 0) && (footsize == 5)) {
-        for (int k; k < 4; k++) {
-            for (int i; i < 2; i++) {
+        for (byte k; k < 4; k++) {
+            for (byte i; i < 2; i++) {
                 probingCoords[k][i] = w5FootsizeCoords[k][i];
             }
         }
     } else {
-        for (int i; i < 2; i++) {
+        for (byte i; i < 2; i++) {
             probingCoords[0][i] = m1CoordList[footsize+sex-6][i];
             probingCoords[1][i] = probingCoords[0][i]*m3Conversions[i];
             probingCoords[2][i] = probingCoords[0][i]*m5Conversions[i];
@@ -245,20 +239,20 @@ void getProbingCoords() {
     }
 
     // recalculate probing coordinates with new reference point
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 2; j++) {
+    for (byte i = 0; i < 4; i++) {
+        for (byte j = 0; j < 2; j++) {
             probingCoords[i][j] = probingCoords[i][j] - newReferencePoint[j];
         }
     }
 
     // shuffle the sequence of probing locations
-    int j;
+    byte j;
     float temp[2];
-    for (int i = 0; i < 4; i++) {
+    for (byte i = 0; i < 4; i++) {
         j = random(0, 3 - i); // get random index
 
         // swap values
-        for (int k; k < 2; k++) {
+        for (byte k; k < 2; k++) {
             temp[k] = probingCoords[i][k];
             probingCoords[i][k] = probingCoords[j][k];
             probingCoords[j][k] = temp[k];
@@ -332,7 +326,7 @@ void resetMotors() {
 void probeLoop(String foot) {
     Serial.println("Starting probing test.");
     // move rails to each of the 4 probing locations
-    for (int i = 0; i < 4; i++) {
+    for (byte i = 0; i < 4; i++) {
         Serial.println("Moving XY rails to probing location.");
 
         // negate x-coordinate if left foot
@@ -343,8 +337,8 @@ void probeLoop(String foot) {
         }
 
         // test probing location three times
-        int improperProbeCount = 0;
-        for (int j = 0; j < 3; j++) {
+        byte improperProbeCount = 0;
+        for (byte j = 0; j < 3; j++) {
             Serial.println("Raising monofilament.");
             bool properProbe = raiseMonofilament();
 
@@ -358,7 +352,7 @@ void probeLoop(String foot) {
 
             if (improperProbeCount == 3){
                 Serial.println("Monofilament is not exerting 10g force as determined by the photointerrupters after 3 tries. Exiting.");
-                serialComm.write(-1); // tell app we failed
+                Serial.write(-1); // tell app we failed
                 resetMotors();
                 return;
             }
@@ -380,12 +374,12 @@ void probeLoop(String foot) {
             }
         }
         
-        serialComm.write((byte) 0x00); // tell app that we"re moving on to next location
+        Serial.write((byte) 0x00); // tell app that we"re moving on to next location
         delay(random(500, 2000)); // randomize timing between different location probing at intervals between 1-3s
     }
 
     Serial.println("Test finished. Resetting motors and exiting.");
-    serialComm.write(1); // tell app that the test finished
+    Serial.write(1); // tell app that the test finished
     resetMotors();
 }
 //** END **//
@@ -400,8 +394,8 @@ bool getInitialAppInput() {
     char rc;
 
     // receive data from the app
-    while (serialComm.available() > 0 && newData == false) {
-        rc = serialComm.read();
+    while (Serial.available() > 0 && newData == false) {
+        rc = Serial.read();
 
         if (recvInProgress == true) {
             if (rc != endMarker) {
@@ -433,22 +427,22 @@ bool getInitialAppInput() {
         Serial.println("Got foot info from app: ");
         Serial.print(footInfo);
 
-        footsize = int(strtok(NULL, ","));
+        footsize = byte(strtok(NULL, ","));
         Serial.println("Got foot size from app: ");
         Serial.print(footsize);
 
-        sex = int(strtok(NULL, ","));
+        sex = byte(strtok(NULL, ","));
         Serial.println("Got sex from app: ");
         Serial.print(sex);
 
         if (toPerform == "probe") {
             if (footInfo == "right" || footInfo == "both") {
-                leftLEDPos = int(strtok(NULL, ","));
-                rightMidLEDPos = int(strtok(NULL, ","));
+                leftLEDPos = byte(strtok(NULL, ","));
+                rightMidLEDPos = byte(strtok(NULL, ","));
             }
             if (footInfo == "left" || footInfo == "both") {
-                rightLEDPos = int(strtok(NULL, ","));
-                leftMidLEDPos = int(strtok(NULL, ","));
+                rightLEDPos = byte(strtok(NULL, ","));
+                leftMidLEDPos = byte(strtok(NULL, ","));
             }
         }
 
@@ -462,8 +456,8 @@ bool getInitialAppInput() {
 
 
 byte getAppInput() {
-    if (serialComm.available()>0) {
-        byte inputByte = serialComm.read();
+    if (Serial.available()>0) {
+        byte inputByte = Serial.read();
         Serial.println("Received data from the app: ");
         Serial.print(inputByte);
 
@@ -478,7 +472,7 @@ void setup() {
     // setting up bluetooth module
     pinMode(rxBluetoothPin, INPUT);
     pinMode(txBluetoothPin, OUTPUT);
-    serialComm.begin(9600);
+    Serial.begin(9600);
     
     Serial.begin(9600);
     randomSeed(analogRead(5)); // randomize seed using noise from analog pin 5
