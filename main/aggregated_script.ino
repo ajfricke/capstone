@@ -118,15 +118,17 @@ void updateFootsize(byte trueVertPos, byte trueHorizPos, byte estVertPos, byte e
     byte horizIdxRange[4][2] = {{0, 1}, {2, 3}, {4, 6}, {7, 9}};
     Serial.println("Checking if we need to update footsize.");
     Serial.print("Old footsize: ");
-    Serial.println(String(footsize));
+    Serial.println(footsize);
     Serial.print("Estimated LED positions are (");
-    Serial.print(String(estVertPos));
+    Serial.print(estVertPos);
     Serial.print(", ");
-    Serial.println(String(estHorizPos) + ").");
+    Serial.print(estHorizPos);
+    Serial.println(").");
     Serial.print("True LED positions are (");
-    Serial.print(String(trueVertPos));
+    Serial.print(trueVertPos);
     Serial.print(", ");
-    Serial.println(String(trueHorizPos) + ").");
+    Serial.print(trueHorizPos);
+    Serial.println(").");
     
     if (trueVertPos == estVertPos && trueHorizPos == estHorizPos) {
         // CASE #1: true positions are equivalent to estimated - no need to update
@@ -151,11 +153,12 @@ void updateFootsize(byte trueVertPos, byte trueHorizPos, byte estVertPos, byte e
     }
 
     Serial.print("New footsize: ");
-    Serial.println(String(footsize));
+    Serial.println(footsize);
     Serial.print("Which is associated with LED positions (");
-    Serial.print(String(footsizeToLED[footsize+sex-5][0]));
+    Serial.print(footsizeToLED[footsize+sex-5][0]);
     Serial.print(", ");
-    Serial.println(String(footsizeToLED[footsize+sex-5][1]) + ").");
+    Serial.print(footsizeToLED[footsize+sex-5][1]);
+    Serial.println(").");
 }
 
 
