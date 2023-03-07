@@ -2,11 +2,20 @@
 #include <Servo.h>
 
 //** GENERAL INITIALIZATIONS **//
+#include <SoftwareSerial.h>
+
+#define rxBluetoothPin 2
+#define txBluetoothPin 3
+SoftwareSerial serialComm = SoftwareSerial(rxBluetoothPin, txBluetoothPin);
+
 Servo myServo;
 
 const byte numChars = 32;
 char receivedChars[numChars];
 char tempChars[numChars];
+bool recvInProgress = false;
+byte ndx = 0;
+char rc;
 
 String footInfo;
 String toPerform;
@@ -27,12 +36,12 @@ byte footsize;
 byte footsizeToLED[10][2] = {{0, 0}, {1, 0}, {2, 1}, {3, 1}, {4, 2}, {5, 2}, {6, 2}, {6, 3}, {7, 3}, {8, 3}};
 
 byte leftLEDs[9][4] = {{0,0,0,1}, {0,0,0,2}, {0,0,0,4}, {0,0,0,8},
-					   {0,0,0,16}, {0,0,0,32}, {0,0,0,64}, {0,0,0,128},
-                  	   {0,0,1,0}};
+             {0,0,0,16}, {0,0,0,32}, {0,0,0,64}, {0,0,0,128},
+                       {0,0,1,0}};
 
 byte rightLEDs[9][4] = {{0,0,4,0}, {0,0,8,0}, {0,0,16,0}, {0,0,32,0}, 
-					    {0,0,64,0}, {0,0,128,0}, {0,1,0,0}, {0,2,0,0}, 
-					    {0,4,0,0}};
+              {0,0,64,0}, {0,0,128,0}, {0,1,0,0}, {0,2,0,0}, 
+              {0,4,0,0}};
 
 byte leftMidLEDs[4][4] = {{8,0,0,0}, {4,0,0,0}, {2,0,0,0}, {1,0,0,0}};
 
@@ -108,9 +117,16 @@ void initializeLEDs(String foot, byte verticalPos, byte horizPos) {
 void updateFootsize(byte trueVertPos, byte trueHorizPos, byte estVertPos, byte estHorizPos) {
     byte horizIdxRange[4][2] = {{0, 1}, {2, 3}, {4, 6}, {7, 9}};
     Serial.println("Checking if we need to update footsize.");
-    Serial.println("Old footsize: " + String(footsize));
-    Serial.println("Estimated LED positions are (" + String(estVertPos) + ", " + String(estHorizPos) + ").");
-    Serial.println("True LED positions are (" + String(trueVertPos) + ", " + String(trueHorizPos) + ").");
+    Serial.print("Old footsize: ");
+    Serial.println(String(footsize));
+    Serial.print("Estimated LED positions are (");
+    Serial.print(String(estVertPos));
+    Serial.print(", ");
+    Serial.println(String(estHorizPos) + ").");
+    Serial.print("True LED positions are (");
+    Serial.print(String(trueVertPos));
+    Serial.print(", ");
+    Serial.println(String(trueHorizPos) + ").");
     
     if (trueVertPos == estVertPos && trueHorizPos == estHorizPos) {
         // CASE #1: true positions are equivalent to estimated - no need to update
@@ -134,8 +150,12 @@ void updateFootsize(byte trueVertPos, byte trueHorizPos, byte estVertPos, byte e
         }
     }
 
-    Serial.println("New footsize: " + String(footsize));
-    Serial.println("Which is associated with LED positions (" + String(footsizeToLED[footsize+sex-5][0]) + ", " + String(footsizeToLED[footsize+sex-5][1]) + ").");
+    Serial.print("New footsize: ");
+    Serial.println(String(footsize));
+    Serial.print("Which is associated with LED positions (");
+    Serial.print(String(footsizeToLED[footsize+sex-5][0]));
+    Serial.print(", ");
+    Serial.println(String(footsizeToLED[footsize+sex-5][1]) + ").");
 }
 
 
@@ -178,7 +198,7 @@ void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
         } else if (instruction == 3) { // move horizontal LED outwards
             Serial.println("Moving horizontal LED outwards.");
             if (horizPos != 3) {
-                horizPos--;
+                horizPos++;
             } else {
                 Serial.println("Hit first LED. Move outwards or confirm.");
             }
@@ -193,9 +213,9 @@ void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
                 rightMidLEDPos = horizPos;
             }
             updateFootsize(verticalPos, horizPos, verticalStartPos, horizStartPos);
-            Serial.write(verticalPos);
-            Serial.write(horizPos);
-            Serial.write(footsize);
+            serialComm.write(verticalPos);
+            serialComm.write(horizPos);
+            serialComm.write(footsize);
             
             finished = true;
         }
@@ -352,7 +372,7 @@ void probeLoop(String foot) {
 
             if (improperProbeCount == 3){
                 Serial.println("Monofilament is not exerting 10g force as determined by the photointerrupters after 3 tries. Exiting.");
-                Serial.write(-1); // tell app we failed
+                serialComm.write(-1); // tell app we failed
                 resetMotors();
                 return;
             }
@@ -374,12 +394,12 @@ void probeLoop(String foot) {
             }
         }
         
-        Serial.write((byte) 0x00); // tell app that we"re moving on to next location
+        serialComm.write((byte) 0x00); // tell app that we"re moving on to next location
         delay(random(500, 2000)); // randomize timing between different location probing at intervals between 1-3s
     }
 
     Serial.println("Test finished. Resetting motors and exiting.");
-    Serial.write(1); // tell app that the test finished
+    serialComm.write(1); // tell app that the test finished
     resetMotors();
 }
 //** END **//
@@ -387,15 +407,15 @@ void probeLoop(String foot) {
 
 //** APP INTERACTION FUNCTIONS **//
 bool getInitialAppInput() {
-    bool recvInProgress = false;
-    byte ndx = 0;
     char startMarker = '<';
     char endMarker = '>';
-    char rc;
-
+    //Serial.println("In init app input function");
+    //Serial.println(serialComm.available());
+    
     // receive data from the app
-    while (Serial.available() > 0 && newData == false) {
-        rc = Serial.read();
+    while (serialComm.available() > 0 && newData == false) { // possibly make recvInProgress the variable we depend on (||)
+        rc = serialComm.read();
+        //Serial.println("In receiving data loop");
 
         if (recvInProgress == true) {
             if (rc != endMarker) {
@@ -413,6 +433,7 @@ bool getInitialAppInput() {
         } else if (rc == startMarker) {
             recvInProgress = true;
         }
+        //Serial.println(serialComm.available());
     }
 
     if (newData == true) {
@@ -420,29 +441,36 @@ bool getInitialAppInput() {
         char * strtokIndx; // used by strtok() as an index
 
         toPerform = strtok(tempChars, ","); // probe or calibrate
-        Serial.println("Got info on what to perform from app: ");
-        Serial.print(toPerform);
+        Serial.print("Got info on what to perform from app: ");
+        Serial.println(toPerform);
 
         footInfo = strtok(NULL, ","); // left, right, or both
-        Serial.println("Got foot info from app: ");
-        Serial.print(footInfo);
+        Serial.print("Got foot info from app: ");
+        Serial.println(footInfo);
 
-        footsize = byte(strtok(NULL, ","));
-        Serial.println("Got foot size from app: ");
-        Serial.print(footsize);
+        footsize = atoi(strtok(NULL, ","));
+        Serial.print("Got foot size from app: ");
+        Serial.println(footsize);
 
-        sex = byte(strtok(NULL, ","));
-        Serial.println("Got sex from app: ");
-        Serial.print(sex);
+        sex = atoi(strtok(NULL, ","));
+        Serial.print("Got sex from app: ");
+        Serial.println(sex);
 
+        // TODO: if both, it won't work properly
         if (toPerform == "probe") {
             if (footInfo == "right" || footInfo == "both") {
-                leftLEDPos = byte(strtok(NULL, ","));
-                rightMidLEDPos = byte(strtok(NULL, ","));
+                leftLEDPos = atoi(strtok(NULL, ","));
+                rightMidLEDPos = atoi(strtok(NULL, ","));
+                Serial.print("Got LED info: ");
+                Serial.print(leftLEDPos);
+                Serial.println(rightMidLEDPos);
             }
             if (footInfo == "left" || footInfo == "both") {
-                rightLEDPos = byte(strtok(NULL, ","));
-                leftMidLEDPos = byte(strtok(NULL, ","));
+                rightLEDPos = atoi(strtok(NULL, ","));
+                leftMidLEDPos = atoi(strtok(NULL, ","));
+                Serial.print("Got LED info: ");
+                Serial.print(rightLEDPos);
+                Serial.println(leftMidLEDPos);
             }
         }
 
@@ -456,10 +484,11 @@ bool getInitialAppInput() {
 
 
 byte getAppInput() {
-    if (Serial.available()>0) {
-        byte inputByte = Serial.read();
-        Serial.println("Received data from the app: ");
-        Serial.print(inputByte);
+    if (serialComm.available()>0) {
+        //Serial.println(serialComm.read());
+        byte inputByte = serialComm.read();
+        Serial.print("Received data from the app: ");
+        Serial.println(inputByte);
 
         return inputByte;
     }
@@ -469,11 +498,10 @@ byte getAppInput() {
 
 
 void setup() {
-    // setting up bluetooth module
+    // setting up bluetooth 
     pinMode(rxBluetoothPin, INPUT);
     pinMode(txBluetoothPin, OUTPUT);
-    Serial.begin(9600);
-    
+    serialComm.begin(9600);
     Serial.begin(9600);
     randomSeed(analogRead(5)); // randomize seed using noise from analog pin 5
 
@@ -512,6 +540,7 @@ void loop() {
 
             toPerform = "";
         } else if (toPerform == "probe") {
+            Serial.println("probing now");
             getProbingCoords();
 
             if (footInfo == "both" || footInfo == "right") { // probe right foot
