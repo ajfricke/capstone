@@ -224,8 +224,7 @@ void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
             itoa(footsize, footsize_buf, 10);
             itoa(verticalPos, vert_buf, 10);
             itoa(horizPos, horiz_buf, 10);
-            String outputApp = String(footsize_buf) + "," + String(vert_buf) + "," + String(horiz_buf);
-            serialComm.print(outputApp);
+            serialComm.print(String(footsize_buf) + "," + String(vert_buf) + "," + String(horiz_buf));
             
             finished = true;
         }
@@ -252,6 +251,7 @@ void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
 
 //** PROBING FUNCTIONS **//
 void getProbingCoords() {
+    Serial.println("Getting probing coordinates");
     // determine the coordinates for each probing location
     if ((sex == 0) && (footsize == 5)) {
         for (byte k; k < 4; k++) {
@@ -288,6 +288,7 @@ void getProbingCoords() {
             probingCoords[j][k] = temp[k];
         }
     }
+    Serial.println(probingCoords);
 }
 
 
@@ -348,6 +349,7 @@ bool raiseMonofilament() {
 
 // move motors and actuator back to starting positions
 void resetMotors() {
+    Serial.println("Resetting motors and actuator to their starting position.");
     moveXYRails(0, 0);
     moveActuator(0);
 }
@@ -358,7 +360,6 @@ void probeLoop(String foot) {
     // move rails to each of the 4 probing locations
     for (byte i = 0; i < 4; i++) {
         Serial.println("Moving XY rails to probing location.");
-
         // negate x-coordinate if left foot
         if (foot == "left") {
             moveXYRails(-probingCoords[i][0], probingCoords[i][1]);
@@ -404,6 +405,7 @@ void probeLoop(String foot) {
             }
         }
         
+        Serial.println("Moving to the next probing location.");
         serialComm.write((byte) 0x00); // tell app that we"re moving on to next location
         delay(random(500, 2000)); // randomize timing between different location probing at intervals between 1-3s
     }
@@ -416,7 +418,7 @@ void probeLoop(String foot) {
 
 
 //** APP INTERACTION FUNCTIONS **//
-bool getInitialAppInput() {
+bool getAppCommand() {
     // receive data from the app
     while (serialComm.available() > 0 && newData == false) {
         rc = serialComm.read();
@@ -472,6 +474,7 @@ bool getInitialAppInput() {
                 Serial.print("Got left LED info: ");
                 Serial.print(rightLEDPos);
                 Serial.println(leftMidLEDPos);
+            }
         }
         newData = false;
 
@@ -484,7 +487,6 @@ bool getInitialAppInput() {
 
 byte getAppInput() {
     if (serialComm.available()>0) {
-        //Serial.println(serialComm.read());
         byte inputByte = serialComm.read();
         Serial.print("Received data from the app: ");
         Serial.println(inputByte);
@@ -522,24 +524,25 @@ void setup() {
 
 
 void loop() {
-    recvdAppInput = getInitialAppInput();
+    recvdAppInput = getAppCommand();
 
     if (recvdAppInput) {
         if (toPerform == "calibrate") {
             byte verticalLEDStartPos = footsizeToLED[footsize+sex-5][0];
             byte horizLEDStartPos = footsizeToLED[footsize+sex-5][1];
             if (footInfo == "right") { // calibrate right foot
+                Serial.println("Calibrating right foot");
                 initializeLEDs("right", verticalLEDStartPos, horizLEDStartPos);
                 calibrationLoop("right", verticalLEDStartPos, horizLEDStartPos);
             }
             if (footInfo == "left") { // calibrate left foot
+                Serial.println("Calibrating left foot");
                 initializeLEDs("left", verticalLEDStartPos, horizLEDStartPos);
                 calibrationLoop("left", verticalLEDStartPos, horizLEDStartPos);
             }
 
             toPerform = "";
         } else if (toPerform == "probe") {
-            Serial.println("probing now");
             getProbingCoords();
 
             if (footInfo == "right") { // probe right foot
@@ -547,6 +550,7 @@ void loop() {
                 while (getAppInput() != 1) { // wait from confirmation from app
                     continue;
                 }
+                Serial.println("Probing right foot");
                 probeLoop("right");
             }
             if (footInfo == "left") {
@@ -554,6 +558,7 @@ void loop() {
                 while (getAppInput() != 1) { // wait from confirmation from app
                     continue;
                 }
+                Serial.println("Calibrating left foot");
                 probeLoop("left");
             }
 
