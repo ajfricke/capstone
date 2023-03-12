@@ -218,13 +218,24 @@ void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
             updateFootsize(verticalPos, horizPos, verticalStartPos, horizStartPos);
 
             // send data to app
-            char footsize_buf[1];
-            char vert_buf[1];
-            char horiz_buf[1];
-            itoa(footsize, footsize_buf, 10);
-            itoa(verticalPos, vert_buf, 10);
-            itoa(horizPos, horiz_buf, 10);
-            serialComm.print(String(footsize_buf) + "," + String(vert_buf) + "," + String(horiz_buf));
+            //byte byteArray[3] = {footsize, verticalPos, horizPos};
+            //Serial.println(byteArray);
+            
+            
+            //char footsize_buf[1];
+            //char vert_buf[1];
+            //char horiz_buf[1];
+            //itoa(footsize, footsize_buf, 10);
+            //itoa(verticalPos, vert_buf, 10);
+            //itoa(horizPos, horiz_buf, 10);
+            //String output = String(footsize_buf) + "," + String(vert_buf) + "," + String(horiz_buf);
+            
+            //Serial.println(footsize_buf);
+            //Serial.println(String(footsize_buf));
+            char dataToArduino[10];
+            sprintf(dataToArduino, "%d,%d,%d", footsize, verticalPos, horizPos);
+            Serial.println(dataToArduino);
+            serialComm.println(dataToArduino);
             
             finished = true;
         }
@@ -288,7 +299,12 @@ void getProbingCoords() {
             probingCoords[j][k] = temp[k];
         }
     }
-    Serial.println(probingCoords);
+
+    //Serial.println("Probing Coordinates:");
+    //for (byte i = 0; i < 4; i++) {
+      //Serial.print(probingCoords[i][0]);
+      //Serial.println(probingCoords[i][1]);
+    //}
 }
 
 
@@ -349,14 +365,14 @@ bool raiseMonofilament() {
 
 // move motors and actuator back to starting positions
 void resetMotors() {
-    Serial.println("Resetting motors and actuator to their starting position.");
+    //Serial.println("Resetting motors and actuator to their starting position.");
     moveXYRails(0, 0);
     moveActuator(0);
 }
 
 
 void probeLoop(String foot) {
-    Serial.println("Starting probing test.");
+    //Serial.println("Starting probing test.");
     // move rails to each of the 4 probing locations
     for (byte i = 0; i < 4; i++) {
         Serial.println("Moving XY rails to probing location.");
@@ -370,25 +386,25 @@ void probeLoop(String foot) {
         // test probing location three times
         byte improperProbeCount = 0;
         for (byte j = 0; j < 3; j++) {
-            Serial.println("Raising monofilament.");
+            //Serial.println("Raising monofilament.");
             bool properProbe = raiseMonofilament();
 
             if (properProbe == false) {
                 j -= 1;
                 improperProbeCount += 1;
             } else {
-                Serial.println("Input received from the photointerrupters. Holding for 2 seconds");
+                //Serial.println("Input received from the photointerrupters. Holding for 2 seconds");
                 delay(2000); // hold probe to foot for 2 seconds
             }
 
             if (improperProbeCount == 3){
-                Serial.println("Monofilament is not exerting 10g force as determined by the photointerrupters after 3 tries. Exiting.");
+                //Serial.println("Monofilament is not exerting 10g force as determined by the photointerrupters after 3 tries. Exiting.");
                 serialComm.write(-1); // tell app we failed
                 resetMotors();
                 return;
             }
 
-            Serial.println("Lowering monofilament.");
+            //Serial.println("Lowering monofilament.");
             moveActuator(0); // lower monofilament back down
 
             prevMillis = millis();
@@ -405,12 +421,12 @@ void probeLoop(String foot) {
             }
         }
         
-        Serial.println("Moving to the next probing location.");
+        //Serial.println("Moving to the next probing location.");
         serialComm.write((byte) 0x00); // tell app that we"re moving on to next location
         delay(random(500, 2000)); // randomize timing between different location probing at intervals between 1-3s
     }
 
-    Serial.println("Test finished. Resetting motors and exiting.");
+    //Serial.println("Test finished. Resetting motors and exiting.");
     serialComm.write(1); // tell app that the test finished
     resetMotors();
 }
@@ -420,6 +436,7 @@ void probeLoop(String foot) {
 //** APP INTERACTION FUNCTIONS **//
 bool getAppCommand() {
     // receive data from the app
+    //Serial.println("hi");
     while (serialComm.available() > 0 && newData == false) {
         rc = serialComm.read();
 
@@ -465,15 +482,15 @@ bool getAppCommand() {
             if (footInfo == "right") {
                 leftLEDPos = atoi(strtok(NULL, ","));
                 rightMidLEDPos = atoi(strtok(NULL, ","));
-                Serial.print("Got right LED info: ");
-                Serial.print(leftLEDPos);
-                Serial.println(rightMidLEDPos);
+                //Serial.print("Got right LED info: ");
+                //Serial.print(leftLEDPos);
+                //Serial.println(rightMidLEDPos);
             } else if (footInfo == "left") {
                 rightLEDPos = atoi(strtok(NULL, ","));
                 leftMidLEDPos = atoi(strtok(NULL, ","));
-                Serial.print("Got left LED info: ");
-                Serial.print(rightLEDPos);
-                Serial.println(leftMidLEDPos);
+                //Serial.print("Got left LED info: ");
+                //Serial.print(rightLEDPos);
+                //Serial.println(leftMidLEDPos);
             }
         }
         newData = false;
@@ -531,12 +548,12 @@ void loop() {
             byte verticalLEDStartPos = footsizeToLED[footsize+sex-5][0];
             byte horizLEDStartPos = footsizeToLED[footsize+sex-5][1];
             if (footInfo == "right") { // calibrate right foot
-                Serial.println("Calibrating right foot");
+                //Serial.println("Calibrating right foot");
                 initializeLEDs("right", verticalLEDStartPos, horizLEDStartPos);
                 calibrationLoop("right", verticalLEDStartPos, horizLEDStartPos);
             }
             if (footInfo == "left") { // calibrate left foot
-                Serial.println("Calibrating left foot");
+                //Serial.println("Calibrating left foot");
                 initializeLEDs("left", verticalLEDStartPos, horizLEDStartPos);
                 calibrationLoop("left", verticalLEDStartPos, horizLEDStartPos);
             }
@@ -550,7 +567,7 @@ void loop() {
                 while (getAppInput() != 1) { // wait from confirmation from app
                     continue;
                 }
-                Serial.println("Probing right foot");
+                //Serial.println("Probing right foot");
                 probeLoop("right");
             }
             if (footInfo == "left") {
@@ -558,7 +575,7 @@ void loop() {
                 while (getAppInput() != 1) { // wait from confirmation from app
                     continue;
                 }
-                Serial.println("Calibrating left foot");
+                //Serial.println("Calibrating left foot");
                 probeLoop("left");
             }
 
