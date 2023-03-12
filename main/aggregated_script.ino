@@ -117,18 +117,6 @@ void initializeLEDs(String foot, byte verticalPos, byte horizPos) {
 void updateFootsize(byte trueVertPos, byte trueHorizPos, byte estVertPos, byte estHorizPos) {
     byte horizIdxRange[4][2] = {{0, 1}, {2, 3}, {4, 6}, {7, 9}};
     Serial.println("Updating footsize");
-    // Serial.print("Old footsize: ");
-    // Serial.println(footsize);
-    // Serial.print("Estimated LED positions are (");
-    // Serial.print(estVertPos);
-    // Serial.print(", ");
-    // Serial.print(estHorizPos);
-    // Serial.println(").");
-    // Serial.print("True LED positions are (");
-    // Serial.print(trueVertPos);
-    // Serial.print(", ");
-    // Serial.print(trueHorizPos);
-    // Serial.println(").");
 
     char printOldFootsize[20];
     sprintf(printOldFootsize, "Old footsize: %d", footsize);
@@ -171,14 +159,6 @@ void updateFootsize(byte trueVertPos, byte trueHorizPos, byte estVertPos, byte e
     char printNewLEDPos[30];
     sprintf(printNewFootsize, "New LED positions: %d, %d", footsizeToLED[footsize+sex-5][0], footsizeToLED[footsize+sex-5][1]);
     Serial.println(printNewFootsize);
-
-    //Serial.print("New footsize: ");
-    //Serial.println(footsize);
-    // Serial.print("New LED positions (");
-    // Serial.print();
-    // Serial.print(", ");
-    // Serial.print();
-    // Serial.println(").");
 }
 
 
@@ -195,27 +175,27 @@ void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
         if (instruction == -1) {
             continue;
         } else if (instruction == 0) { // move vertical LED down
-            //Serial.println("Moving vertical LED downwards.");
+            Serial.println("Moving vertical LED downwards.");
             if (verticalPos != 0) {
                 verticalPos--;
             } else {
-                //Serial.println("Hit first LED. Move upwards or confirm.");
+                Serial.println("Hit first LED. Move upwards or confirm.");
             }
             moveLED = true;
         } else if (instruction == 1) { // move vertical LED up
-            //Serial.println("Moving vertical LED upwards.");
+            Serial.println("Moving vertical LED upwards.");
             if (verticalPos != 8){
                 verticalPos++;
             } else {
-                //Serial.println("Hit last LED. Move downwards or confirm.");
+                Serial.println("Hit last LED. Move downwards or confirm.");
             }
             moveLED = true;
         } else if (instruction == 2) { // move horizontal LED inwards
-            //Serial.println("Moving horizontal LED inwards.");
+            Serial.println("Moving horizontal LED inwards.");
             if (horizPos != 0) {
                 horizPos--;
             } else {
-                //Serial.println("Hit first LED. Move outwards or confirm.");
+                Serial.println("Hit first LED. Move outwards or confirm.");
             }
             moveLED = true;
         } else if (instruction == 3) { // move horizontal LED outwards
@@ -227,7 +207,7 @@ void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
             }
             moveLED = true;
         } else if (instruction == 4) { // LEDs confirmed
-            //Serial.println("Finished calibration.");
+            Serial.println("Finished calibration.");
             if (foot == "left") {
                 rightLEDPos = verticalPos;
                 leftMidLEDPos = horizPos;
@@ -284,6 +264,7 @@ void getProbingCoords() {
             probingCoords[3][i] = probingCoords[0][i]*bigToeConversions[i];
         }
     }
+
     // recalculate probing coordinates with new reference point
     for (byte i = 0; i < 4; i++) {
         for (byte j = 0; j < 2; j++) {
@@ -306,8 +287,9 @@ void getProbingCoords() {
 
     Serial.println("Probing Coordinates:");
     for (byte i = 0; i < 4; i++) {
-      Serial.println(probingCoords[i][0],5);
-      Serial.println(probingCoords[i][1],5);
+      Serial.print(probingCoords[i][0], 5);
+      Serial.print(" ");
+      Serial.println(probingCoords[i][1], 5);
     }
 }
 
@@ -332,7 +314,7 @@ void moveXYRails(int xPos, int yPos) {
 void moveActuator(float strokeMM) {
     float strokePercentage = strokeMM/actuatorShaftLengthMM;
 
-    // don't go too close to servo limit to prevent strain
+    // don"t go too close to servo limit to prevent strain
     if (strokePercentage < 0.01) {
         strokePercentage = 0.01;
     } else if (strokePercentage > 0.99) {
@@ -369,7 +351,7 @@ bool raiseMonofilament() {
 
 // move motors and actuator back to starting positions
 void resetMotors() {
-    //Serial.println("Resetting to starting position.");
+    Serial.println("Resetting to starting position.");
     moveXYRails(0, 0);
     moveActuator(0);
 }
@@ -462,7 +444,6 @@ bool getAppCommand() {
     }
 
     if (newData == true) {
-        Serial.println(receivedChars);
         strcpy(tempChars, receivedChars);
         char * strtokIndx; // used by strtok() as an index
 
@@ -474,13 +455,13 @@ bool getAppCommand() {
         Serial.print("Foot from app: ");
         Serial.println(footInfo);
 
-        sex = atoi(strtok(NULL, ","));
-        Serial.print("Sex from app: ");
-        Serial.println(sex);
-
         footsize = atoi(strtok(NULL, ","));
         Serial.print("Foot size from app: ");
         Serial.println(footsize);
+
+        sex = atoi(strtok(NULL, ","));
+        Serial.print("Sex from app: ");
+        Serial.println(sex);
 
         if (toPerform == "probe") {
             if (footInfo == "right") {
@@ -513,8 +494,6 @@ byte getAppInput() {
         char appData[20];
         sprintf(appData, "Data from app: %d", inputByte);
         Serial.println(appData);
-        // Serial.print("Data from app: ");
-        // Serial.println(inputByte);
 
         return inputByte;
     }
