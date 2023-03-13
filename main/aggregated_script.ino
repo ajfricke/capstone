@@ -35,17 +35,17 @@ byte footsize;
 
 byte footsizeToLED[10][2] = {{0, 0}, {1, 0}, {2, 1}, {3, 1}, {4, 2}, {5, 2}, {6, 2}, {6, 3}, {7, 3}, {8, 3}};
 
-byte leftLEDs[9][4] = {{0,0,0,1}, {0,0,0,2}, {0,0,0,4}, {0,0,0,8},
-             {0,0,0,16}, {0,0,0,32}, {0,0,0,64}, {0,0,0,128},
-                       {0,0,1,0}};
+byte leftLEDs[9][4] = {{0,0,0,128}, {0,0,0,64}, {0,0,0,32}, {0,0,0,16},
+          {0,0,0,8}, {0,0,0,4}, {0,0,0,2}, {0,0,0,1},
+                    {0,0,128,0}};
 
-byte rightLEDs[9][4] = {{0,0,4,0}, {0,0,8,0}, {0,0,16,0}, {0,0,32,0}, 
-              {0,0,64,0}, {0,0,128,0}, {0,1,0,0}, {0,2,0,0}, 
-              {0,4,0,0}};
+byte rightLEDs[9][4] = {{0,0,64,0}, {0,0,32,0}, {0,0,16,0}, {0,0,8,0}, 
+          {0,0,4,0}, {0,0,1,0}, {0,128,0,0}, {0,64,0,0}, 
+          {0,32,0,0}};
 
-byte leftMidLEDs[4][4] = {{8,0,0,0}, {4,0,0,0}, {2,0,0,0}, {1,0,0,0}};
+byte leftMidLEDs[4][4] = {{16,0,0,0}, {32,0,0,0}, {64,0,0,0}, {128,0,0,0}};
 
-byte rightMidLEDs[4][4] = {{16,0,0,0}, {32,0,0,0}, {64,0,0,0}, {128,0,0,0}};
+byte rightMidLEDs[4][4] = {{8,0,0,0}, {4,0,0,0}, {2,0,0,0}, {1,0,0,0}};
 
 byte leftLEDPos = -1;
 byte rightLEDPos = -1;
@@ -97,6 +97,14 @@ AccelStepper stepper300 = AccelStepper(motorInterfaceType, stepPin300, dirPin300
 
 
 //** CALIBRATION FUNCTIONS **//
+void resetLEDs() {
+    digitalWrite(latchPin, LOW);
+    for (byte i = 0; i < 4; i++) {
+        shiftOut(dataPin, clockPin, MSBFIRST, 0);
+    }
+    digitalWrite(latchPin, HIGH);
+}
+
 void initializeLEDs(String foot, byte verticalPos, byte horizPos) {
     digitalWrite(latchPin, LOW);
     if (foot == "left") {
@@ -175,39 +183,39 @@ void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
         if (instruction == -1) {
             continue;
         } else if (instruction == 0) { // move vertical LED down
-            Serial.println("Moving vertical LED downwards.");
+            //Serial.println("Moving vertical LED downwards.");
             if (verticalPos != 0) {
                 verticalPos--;
             } else {
-                Serial.println("Hit first LED. Move upwards or confirm.");
+                //Serial.println("Hit first LED. Move upwards or confirm.");
             }
             moveLED = true;
         } else if (instruction == 1) { // move vertical LED up
-            Serial.println("Moving vertical LED upwards.");
+            //Serial.println("Moving vertical LED upwards.");
             if (verticalPos != 8){
                 verticalPos++;
             } else {
-                Serial.println("Hit last LED. Move downwards or confirm.");
+                //Serial.println("Hit last LED. Move downwards or confirm.");
             }
             moveLED = true;
         } else if (instruction == 2) { // move horizontal LED inwards
-            Serial.println("Moving horizontal LED inwards.");
+            //Serial.println("Moving horizontal LED inwards.");
             if (horizPos != 0) {
                 horizPos--;
             } else {
-                Serial.println("Hit first LED. Move outwards or confirm.");
+                //Serial.println("Hit first LED. Move outwards or confirm.");
             }
             moveLED = true;
         } else if (instruction == 3) { // move horizontal LED outwards
-            Serial.println("Moving horizontal LED outwards.");
+            //Serial.println("Moving horizontal LED outwards.");
             if (horizPos != 3) {
                 horizPos++;
             } else {
-                Serial.println("Hit first LED. Move outwards or confirm.");
+                //Serial.println("Hit first LED. Move outwards or confirm.");
             }
             moveLED = true;
         } else if (instruction == 4) { // LEDs confirmed
-            Serial.println("Finished calibration.");
+            //Serial.println("Finished calibration.");
             if (foot == "left") {
                 rightLEDPos = verticalPos;
                 leftMidLEDPos = horizPos;
@@ -248,7 +256,7 @@ void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
 
 //** PROBING FUNCTIONS **//
 void getProbingCoords() {
-    Serial.println("Getting probing coordinates");
+    //Serial.println("Getting probing coordinates");
     // determine the coordinates for each probing location
     if ((sex == 0) && (footsize == 5)) {
         for (byte k; k < 4; k++) {
@@ -362,7 +370,7 @@ void probeLoop(String foot) {
     // move rails to each of the 4 probing locations
     for (byte i = 0; i < 4; i++) {
         Serial.println("Moving XY rails to probing location.");
-        // negate x-coordinate if left foot
+        // negate x-coordinate if left foot, negate y-coordinates
         if (foot == "left") {
             moveXYRails(-probingCoords[i][0], -probingCoords[i][1]);
         } else {
@@ -375,28 +383,39 @@ void probeLoop(String foot) {
             Serial.println("Raising monofilament.");
             bool properProbe = raiseMonofilament();
 
-//            if (properProbe == false) {
-//                j -= 1;
-//                improperProbeCount += 1;
-//            } else {
-//                //Serial.println("Input received from the photointerrupters. Holding for 2 sec");
-//                delay(2000); // hold probe to foot for 2 seconds
-//            }
-//
-//            if (improperProbeCount == 3){
-//                Serial.println("Monofilament not picked up by photointerrupters after 3 tries. Exiting.");
-//                serialComm.write(-1); // tell app we failed
-//                resetMotors();
-//                return;
-//            }
+            if (properProbe == false) {
+                j -= 1;
+                improperProbeCount += 1;
+            } else {
+                Serial.println("Detected bend. Holding for 2 sec");
+
+                currMillis = millis();
+                prevMillis = millis();
+                
+                // check for user response
+                response = -1;
+                while((currMillis - prevMillis < 2000) && response != 1) {
+                    response = getAppInput();
+                    currMillis = millis();
+                }
+            }
+
+           if (improperProbeCount == 3){
+                Serial.println("Monofilament not picked up by photointerrupters after 3 tries. Exiting.");
+                serialComm.write(-1); // tell app we failed
+                resetMotors();
+                return;
+            }
 
             Serial.println("Lowering monofilament.");
             moveActuator(0); // lower monofilament back down
 
-            prevMillis = millis();
             currMillis = millis();
+            prevMillis = millis();
+            
             
             // wait for user response, otherwise will be marked as no
+            response = -1;
             while((currMillis - prevMillis < 2000) && response != 1) {
                 response = getAppInput();
                 currMillis = millis();
@@ -407,7 +426,7 @@ void probeLoop(String foot) {
             }
         }
         
-        Serial.println("Moving to next probing location.");
+        //Serial.println("Moving to next probing location.");
         serialComm.write((byte) 0x00); // tell app that we"re moving on to next location
         delay(random(500, 2000)); // randomize timing between different location probing at intervals between 1-3s
     }
@@ -455,13 +474,13 @@ bool getAppCommand() {
         Serial.print("Foot from app: ");
         Serial.println(footInfo);
 
-        footsize = atoi(strtok(NULL, ","));
-        Serial.print("Foot size from app: ");
-        Serial.println(footsize);
-
         sex = atoi(strtok(NULL, ","));
         Serial.print("Sex from app: ");
         Serial.println(sex);
+
+        footsize = atoi(strtok(NULL, ","));
+        Serial.print("Foot size from app: ");
+        Serial.println(footsize);
 
         if (toPerform == "probe") {
             if (footInfo == "right") {
@@ -524,6 +543,8 @@ void setup() {
     pinMode(latchPin, OUTPUT);
     pinMode(clockPin, OUTPUT);
     pinMode(dataPin, OUTPUT);
+
+    resetLEDs();
 }
 
 
@@ -532,6 +553,7 @@ void loop() {
 
     if (recvdAppInput) {
         if (toPerform == "calibrate") {
+            resetLEDs();
             byte verticalLEDStartPos = footsizeToLED[footsize+sex-5][0];
             byte horizLEDStartPos = footsizeToLED[footsize+sex-5][1];
             if (footInfo == "right") { // calibrate right foot
@@ -567,6 +589,7 @@ void loop() {
             }
 
             toPerform = "";
+            resetLEDs();
         }
     }
 }
