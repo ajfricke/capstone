@@ -2,8 +2,8 @@
 #include <Servo.h>
 #include <SoftwareSerial.h>
 
-#define rxBluetoothPin 2
-#define txBluetoothPin 3
+#define rxBluetoothPin 7 // Green wire
+#define txBluetoothPin 6 // Blue wire
 SoftwareSerial serialComm = SoftwareSerial(rxBluetoothPin, txBluetoothPin);
 
 Servo myServo;
@@ -26,9 +26,9 @@ bool recvdAppInput = false;
 
 
 //** CALIBRATION INITIALIZATIONS **//
-#define clockPin 9
-#define latchPin 11
-#define dataPin 12
+#define clockPin 11
+#define latchPin 10
+#define dataPin 9
 
 byte sex; // 0 for female, 1 for male
 byte footsize;
@@ -36,16 +36,16 @@ byte footsize;
 byte footsizeToLED[10][2] = {{0, 0}, {1, 0}, {2, 1}, {3, 1}, {4, 2}, {5, 2}, {6, 2}, {6, 3}, {7, 3}, {8, 3}};
 
 byte leftLEDs[9][4] = {{0,0,0,128}, {0,0,0,64}, {0,0,0,32}, {0,0,0,16},
-          {0,0,0,8}, {0,0,0,4}, {0,0,0,2}, {0,0,0,1},
-                    {0,0,128,0}};
+                        {0,0,0,8}, {0,0,0,4}, {0,0,0,2}, {0,0,0,1},
+                        {0,0,1,0}};
 
-byte rightLEDs[9][4] = {{0,0,64,0}, {0,0,32,0}, {0,0,16,0}, {0,0,8,0}, 
-          {0,0,4,0}, {0,0,1,0}, {0,128,0,0}, {0,64,0,0}, 
-          {0,32,0,0}};
+int rightLEDs[9][4] = {{0,1,0,0}, {0,2,0,0}, {0,4,0,0}, {0,8,0,0}, 
+                        {0,16,0,0}, {0,32,0,0}, {0,64,0,0}, {0,128,0,0}, 
+                        {0,0,128,0}};
 
-byte leftMidLEDs[4][4] = {{16,0,0,0}, {32,0,0,0}, {64,0,0,0}, {128,0,0,0}};
+int leftMidLEDs[4][4] = {{8,0,0,0}, {4,0,0,0}, {2,0,0,0}, {1,0,0,0}};
 
-byte rightMidLEDs[4][4] = {{8,0,0,0}, {4,0,0,0}, {2,0,0,0}, {1,0,0,0}};
+int rightMidLEDs[4][4] = {{16,0,0,0}, {32,0,0,0}, {64,0,0,0}, {128,0,0,0}};
 
 byte leftLEDPos = -1;
 byte rightLEDPos = -1;
@@ -56,19 +56,19 @@ byte rightMidLEDPos = -1;
 
 //** PROBING INITIALIZATIONS **//
 // define pins
-#define dirPin100 4
-#define stepPin100 5
-#define dirPin300 7
-#define stepPin300 6
+#define dirPin100 2
+#define stepPin100 3
+#define dirPin300 4
+#define stepPin300 5
 #define motorInterfaceType 1 // indicates a driver
-#define servoPin 10
-#define interrupterPin1 A2
-#define interrupterPin2 A3
+#define servoPin 13
+#define interrupterPin1 A0
+#define interrupterPin2 A1
 
 #define mmPerRev 5
 #define oneMicrostepStepsPerRev 200
 #define microstep 0.25 // change if needed
-#define actuatorShaftLengthMM 50
+#define actuatorShaftLengthMM 35
 
 // for actuator probing
 #define strokeStepMM 2
@@ -98,6 +98,7 @@ AccelStepper stepper300 = AccelStepper(motorInterfaceType, stepPin300, dirPin300
 
 //** CALIBRATION FUNCTIONS **//
 void resetLEDs() {
+    //Serial.println("Resetting LEDs");
     digitalWrite(latchPin, LOW);
     for (byte i = 0; i < 4; i++) {
         shiftOut(dataPin, clockPin, MSBFIRST, 0);
@@ -106,6 +107,7 @@ void resetLEDs() {
 }
 
 void initializeLEDs(String foot, byte verticalPos, byte horizPos) {
+    //Serial.println("Initializing LEDs");
     digitalWrite(latchPin, LOW);
     if (foot == "left") {
         // light up LEDs for left foot
@@ -126,17 +128,17 @@ void updateFootsize(byte trueVertPos, byte trueHorizPos, byte estVertPos, byte e
     byte horizIdxRange[4][2] = {{0, 1}, {2, 3}, {4, 6}, {7, 9}};
     Serial.println("Updating footsize");
 
-    char printOldFootsize[20];
-    sprintf(printOldFootsize, "Old footsize: %d", footsize);
-    Serial.println(printOldFootsize);
+    // char printOldFootsize[20];
+    // sprintf(printOldFootsize, "Old footsize: %d", footsize);
+    // Serial.println(printOldFootsize);
 
-    char printEstLEDPos[30];
-    sprintf(printEstLEDPos, "Est. LED positions: %d, %d", estVertPos, estHorizPos);
-    Serial.println(printEstLEDPos);
+    // char printEstLEDPos[30];
+    // sprintf(printEstLEDPos, "Est. LED positions: %d, %d", estVertPos, estHorizPos);
+    // Serial.println(printEstLEDPos);
 
-    char printTrueLEDPos[30];
-    sprintf(printTrueLEDPos, "True LED positions: %d, %d", trueVertPos, trueHorizPos);
-    Serial.println(printTrueLEDPos);
+    // char printTrueLEDPos[30];
+    // sprintf(printTrueLEDPos, "True LED positions: %d, %d", trueVertPos, trueHorizPos);
+    // Serial.println(printTrueLEDPos);
     
     if (trueVertPos == estVertPos && trueHorizPos == estHorizPos) {
         // CASE #1: true positions are equivalent to estimated - no need to update
@@ -164,9 +166,9 @@ void updateFootsize(byte trueVertPos, byte trueHorizPos, byte estVertPos, byte e
     sprintf(printNewFootsize, "New footsize: %d", footsize);
     Serial.println(printNewFootsize);
 
-    char printNewLEDPos[30];
-    sprintf(printNewFootsize, "New LED positions: %d, %d", footsizeToLED[footsize+sex-5][0], footsizeToLED[footsize+sex-5][1]);
-    Serial.println(printNewFootsize);
+    // char printNewLEDPos[30];
+    // sprintf(printNewLEDPos, "New LED positions: %d, %d", footsizeToLED[footsize+sex-5][0], footsizeToLED[footsize+sex-5][1]);
+    // Serial.println(printNewLEDPos);
 }
 
 
@@ -228,7 +230,7 @@ void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
             // send data to app
             char dataToArduino[10];
             sprintf(dataToArduino, "%d,%d,%d", footsize, verticalPos, horizPos);
-            Serial.println(dataToArduino);
+            //Serial.println(dataToArduino);
             serialComm.println(dataToArduino);
             
             finished = true;
@@ -280,6 +282,7 @@ void getProbingCoords() {
         }
     }
 
+    // TODO: make sure shuffling is working
     // shuffle the sequence of probing locations
     byte j;
     float temp[2];
@@ -311,6 +314,10 @@ int mmToSteps(int mmPos) {
 
 // move the rails to the xy coordinate
 void moveXYRails(int xPos, int yPos) {
+    Serial.print("Moving to: ");
+    Serial.print(xPos);
+    Serial.print(",");
+    Serial.print(yPos);
     stepper100.moveTo(mmToSteps(xPos));
     stepper300.moveTo(mmToSteps(yPos));
     stepper100.runToPosition();
@@ -342,10 +349,12 @@ bool raiseMonofilament() {
     // move actuator up to at most actuatorShaftLengthMM, checking for input from photointerrupters every strokeStepMM
     for (int mmLocation = 1; mmLocation < actuatorShaftLengthMM; mmLocation += strokeStepMM) {
         int photoVal1 = analogRead(interrupterPin1); // read the value from the first photointerrupter
-        int photoVal2 = analogRead(interrupterPin2); // read the value from the first photointerrupter
+        int photoVal2 = analogRead(interrupterPin2); // read the value from the second photointerrupter
+        Serial.println(photoVal1);
+        Serial.println(photoVal2);
 
         if (photoVal1 < 100 || photoVal2 < 100) {
-        return true;
+            return true;
         }
 
         moveActuator(mmLocation); // move actuator to mmLocation
@@ -360,16 +369,17 @@ bool raiseMonofilament() {
 // move motors and actuator back to starting positions
 void resetMotors() {
     Serial.println("Resetting to starting position.");
-    moveXYRails(0, 0);
     moveActuator(0);
+    delay(500);
+    moveXYRails(0, 0);
 }
 
 
 void probeLoop(String foot) {
-    Serial.println("Starting probing.");
+    //Serial.println("Starting probing.");
     // move rails to each of the 4 probing locations
     for (byte i = 0; i < 4; i++) {
-        Serial.println("Moving XY rails to probing location.");
+        //Serial.println("Moving XY rails to probing location.");
         // negate x-coordinate if left foot, negate y-coordinates
         if (foot == "left") {
             moveXYRails(-probingCoords[i][0], -probingCoords[i][1]);
@@ -412,7 +422,6 @@ void probeLoop(String foot) {
 
             currMillis = millis();
             prevMillis = millis();
-            
             
             // wait for user response, otherwise will be marked as no
             response = -1;
