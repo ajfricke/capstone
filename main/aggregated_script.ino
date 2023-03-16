@@ -68,7 +68,8 @@ byte rightMidLEDPos = -1;
 #define mmPerRev 5
 #define oneMicrostepStepsPerRev 200
 #define microstep 0.25 // change if needed
-#define actuatorShaftLengthMM 35
+#define actuatorMaxTravelDist 40
+#define actuatorShaftLengthMM 50
 
 // for actuator probing
 #define strokeStepMM 2
@@ -79,9 +80,9 @@ unsigned long currMillis;
 unsigned long prevMillis;
 
 // 1st metatarsal (x,y) coordinates for different foot sizes
-float m1CoordList[9][2] = {{18.52799,163.83845}, {19.41122,171.12136}, {20.0718,177.67446}, 
-                                {21.39691,184.95694}, {21.83603,189.32687}, {22.49935,196.60877}, 
-                                {22.93777,203.16239}, {24.03872,208.2592}, {24.70276,214.08506}};
+float m1CoordList[9][2] = {{18.52799,163.83845}, {19.41122,171.12136}, {20.0718,177.67446},  // M5/W6, M6/W7, M7/W8
+                                {21.39691,184.95694}, {21.83603,189.32687}, {22.49935,196.60877}, // M8, M9, M10
+                                {22.93777,203.16239}, {24.03872,208.2592}, {24.70276,214.08506}}; // M11, M12, M13
 
 // conversion factors to get the other probing locations
 float m3Conversions[2] = {2.666243932,1.004125611};
@@ -261,8 +262,8 @@ void getProbingCoords() {
     //Serial.println("Getting probing coordinates");
     // determine the coordinates for each probing location
     if ((sex == 0) && (footsize == 5)) {
-        for (byte k; k < 4; k++) {
-            for (byte i; i < 2; i++) {
+        for (byte k = 0; k < 4; k++) {
+            for (byte i = 0; i < 2; i++) {
                 probingCoords[k][i] = w5FootsizeCoords[k][i];
             }
         }
@@ -317,7 +318,7 @@ void moveXYRails(int xPos, int yPos) {
     Serial.print("Moving to: ");
     Serial.print(xPos);
     Serial.print(",");
-    Serial.print(yPos);
+    Serial.println(yPos);
     stepper100.moveTo(mmToSteps(xPos));
     stepper300.moveTo(mmToSteps(yPos));
     stepper100.runToPosition();
@@ -340,6 +341,7 @@ void moveActuator(float strokeMM) {
     int usec = 1000 + strokePercentage * 1000;
 
     // move actuator
+    //Serial.println(strokePercentage);
     myServo.writeMicroseconds(usec);
 }
 
@@ -347,11 +349,9 @@ void moveActuator(float strokeMM) {
 // raise actuator until photointerrupter input
 bool raiseMonofilament() {
     // move actuator up to at most actuatorShaftLengthMM, checking for input from photointerrupters every strokeStepMM
-    for (int mmLocation = 1; mmLocation < actuatorShaftLengthMM; mmLocation += strokeStepMM) {
+    for (int mmLocation = 1; mmLocation < actuatorMaxTravelDist; mmLocation += strokeStepMM) {
         int photoVal1 = analogRead(interrupterPin1); // read the value from the first photointerrupter
         int photoVal2 = analogRead(interrupterPin2); // read the value from the second photointerrupter
-        Serial.println(photoVal1);
-        Serial.println(photoVal2);
 
         if (photoVal1 < 100 || photoVal2 < 100) {
             return true;
@@ -529,6 +529,98 @@ byte getAppInput() {
 }
 //** END **//
 
+// TODO: testing, remove later
+void runLocations(String foot) {
+   Serial.println(foot);
+   // W size 5
+   for (byte k = 0; k < 4; k++) {
+       for (byte i = 0; i < 2; i++) {
+           probingCoords[k][i] = w5FootsizeCoords[k][i];
+       }
+   }
+
+   // recalculate probing coordinates with new reference point
+   for (byte i = 0; i < 4; i++) {
+       for (byte j = 0; j < 2; j++) {
+           probingCoords[i][j] = probingCoords[i][j] - newReferencePoint[j];
+       }
+   }
+
+   Serial.println("Location Set #1 (W5)");
+
+   for (byte a = 0; a < 4; a++) {
+       if (foot == "left") {
+           moveXYRails(-probingCoords[a][0], -probingCoords[a][1]); // left
+       } else {
+           moveXYRails(probingCoords[a][0], -probingCoords[a][1]);
+       }
+       
+       for (int mmLocation = 1; mmLocation < actuatorMaxTravelDist; mmLocation += strokeStepMM) {
+           moveActuator(mmLocation); // move actuator to mmLocation
+           delay(delayMS); // delay by delayMS before next stroke
+       }
+       delay(100);
+       moveActuator(0);
+       delay(250);
+   }
+
+   resetMotors();
+   delay(1000);
+
+    for (byte j = 0; j < 9; j++) {
+        for (byte i = 0; i < 2; i++) {
+            probingCoords[0][i] = m1CoordList[j][i];
+            probingCoords[1][i] = probingCoords[0][i]*m3Conversions[i];
+            probingCoords[2][i] = probingCoords[0][i]*m5Conversions[i];
+            probingCoords[3][i] = probingCoords[0][i]*bigToeConversions[i];
+        }
+
+        // recalculate probing coordinates with new reference point
+        for (byte i = 0; i < 4; i++) {
+            for (byte j = 0; j < 2; j++) {
+                probingCoords[i][j] = probingCoords[i][j] - newReferencePoint[j];
+            }
+        }
+
+        Serial.print("Location Set #");
+        Serial.println(j+2);
+
+        for (byte a = 0; a < 4; a++) {
+            if (foot == "left") {
+                moveXYRails(-probingCoords[a][0], -probingCoords[a][1]); // left
+            } else {
+                moveXYRails(probingCoords[a][0], -probingCoords[a][1]);
+            }
+
+            for (int mmLocation = 1; mmLocation < actuatorMaxTravelDist; mmLocation += strokeStepMM) {
+                moveActuator(mmLocation); // move actuator to mmLocation
+                delay(delayMS); // delay by delayMS before next stroke
+            }
+            delay(100);
+            moveActuator(0);
+            delay(250);
+        }
+
+        resetMotors();
+        delay(1000);
+    }
+}
+
+
+void calibratePSU(int ms) {
+    moveActuator(actuatorMaxTravelDist);
+    delay(ms);
+    moveActuator(0);
+}
+
+
+void printPhotoValues() {
+    int photoVal1 = analogRead(interrupterPin1); // read the value from the first photointerrupter
+    int photoVal2 = analogRead(interrupterPin2); // read the value from the second photointerrupter
+    Serial.println(photoVal1);
+    Serial.println(photoVal2);
+}
+
 
 void setup() {
     // setting up bluetooth 
@@ -554,10 +646,20 @@ void setup() {
     pinMode(dataPin, OUTPUT);
 
     resetLEDs();
+    
+    // TODO: testing, remove later
+    calibratePSU(2000);
+
+    // TODO: testing, remove later
+    runLocations("left");
+    // runLocations("right");
 }
 
 
 void loop() {
+    // TODO: testing, remove later
+    //printPhotoValues();
+
     recvdAppInput = getAppCommand();
 
     if (recvdAppInput) {
