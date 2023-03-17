@@ -2,6 +2,8 @@
 #include <Servo.h>
 #include <SoftwareSerial.h>
 
+bool fakeProbe = false;
+
 #define rxBluetoothPin 7 // Green wire
 #define txBluetoothPin 6 // Blue wire
 SoftwareSerial serialComm = SoftwareSerial(rxBluetoothPin, txBluetoothPin);
@@ -261,6 +263,8 @@ void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
 void getProbingCoords() {
     //Serial.println("Getting probing coordinates");
     // determine the coordinates for each probing location
+    Serial.println(footsize);
+    Serial.println(sex);
     if ((sex == 0) && (footsize == 5)) {
         for (byte k = 0; k < 4; k++) {
             for (byte i = 0; i < 2; i++) {
@@ -276,6 +280,13 @@ void getProbingCoords() {
         }
     }
 
+    Serial.println("Probing Coordinates before:");
+    for (byte i = 0; i < 4; i++) {
+      Serial.print(probingCoords[i][0], 5);
+      Serial.print(" ");
+      Serial.println(probingCoords[i][1], 5);
+    }
+
     // recalculate probing coordinates with new reference point
     for (byte i = 0; i < 4; i++) {
         for (byte j = 0; j < 2; j++) {
@@ -285,15 +296,18 @@ void getProbingCoords() {
 
     // TODO: make sure shuffling is working
     // shuffle the sequence of probing locations
-    byte j;
-    float temp[2];
-    for (byte i = 0; i < 4; i++) {
-        j = random(0, 3 - i); // get random index
+    if (fakeProbe == false) {
+        Serial.println("Not fake probe. Getting coords");
+        byte j;
+        float temp[2];
+        for (byte i = 0; i < 4; i++) {
+            j = random(0, 3 - i); // get random index
 
-        for (byte k = 0; k < 2; k++) {
-            temp[k] = probingCoords[i][k];
-            probingCoords[i][k] = probingCoords[j][k];
-            probingCoords[j][k] = temp[k];
+            for (byte k = 0; k < 2; k++) {
+                temp[k] = probingCoords[i][k];
+                probingCoords[i][k] = probingCoords[j][k];
+                probingCoords[j][k] = temp[k];
+            }
         }
     }
 
@@ -342,6 +356,7 @@ void moveActuator(float strokeMM) {
 
     // move actuator
     //Serial.println(strokePercentage);
+    //Serial.println(strokePercentage);
     myServo.writeMicroseconds(usec);
 }
 
@@ -354,9 +369,12 @@ bool raiseMonofilament() {
         int photoVal2 = analogRead(interrupterPin2); // read the value from the second photointerrupter
 
         if (photoVal1 < 100 || photoVal2 < 100) {
+//            Serial.println(photoVal1);
+//            Serial.println(photoVal2);
             return true;
         }
 
+        //Serial.println(mmLocation);
         moveActuator(mmLocation); // move actuator to mmLocation
         delay(delayMS); // delay by delayMS before next stroke
     }
@@ -375,23 +393,29 @@ void resetMotors() {
 }
 
 
-void probeLoop(String foot) {
+void probeLoop(String foot, byte falseProbeList[4]) {
+    bool properProbe;
     //Serial.println("Starting probing.");
     // move rails to each of the 4 probing locations
     for (byte i = 0; i < 4; i++) {
         //Serial.println("Moving XY rails to probing location.");
         // negate x-coordinate if left foot, negate y-coordinates
         if (foot == "left") {
-            moveXYRails(-probingCoords[i][0], -probingCoords[i][1]);
-        } else {
             moveXYRails(probingCoords[i][0], -probingCoords[i][1]);
+        } else {
+            moveXYRails(-probingCoords[i][0], -probingCoords[i][1]);
         }
 
         // test probing location three times
         byte improperProbeCount = 0;
         for (byte j = 0; j < 3; j++) {
-            Serial.println("Raising monofilament.");
-            bool properProbe = raiseMonofilament();
+            if (falseProbeList[i] == 0) {
+                Serial.println("Raising monofilament.");
+                properProbe = raiseMonofilament();
+            } else {
+                Serial.println("Faking probe!");
+                properProbe = true;
+            }
 
             if (properProbe == false) {
                 j -= 1;
@@ -408,17 +432,25 @@ void probeLoop(String foot) {
                     response = getAppInput();
                     currMillis = millis();
                 }
+                if (response == 1) {
+                    Serial.println("Got yes probe");
+                    Serial.println("Lowering monofilament.");
+                    moveActuator(0); // lower monofilament back down
+                    break;
+                }
             }
 
-           if (improperProbeCount == 3){
+            if (improperProbeCount == 3){
                 Serial.println("Monofilament not picked up by photointerrupters after 3 tries. Exiting.");
                 serialComm.write(-1); // tell app we failed
                 resetMotors();
                 return;
             }
 
-            Serial.println("Lowering monofilament.");
-            moveActuator(0); // lower monofilament back down
+            if (falseProbeList[i] == 0) {
+                Serial.println("Lowering monofilament.");
+                moveActuator(0); // lower monofilament back down
+            }
 
             currMillis = millis();
             prevMillis = millis();
@@ -430,7 +462,12 @@ void probeLoop(String foot) {
                 currMillis = millis();
             }
 
-            if (j != 2) {
+            if (response == 1) {
+                Serial.println("Got yes probe.");
+                break;
+            }
+
+            if (j < 2) {
                 delay(random(500, 2000)); // randomize timing between same location probing at intervals between 1-3s
             }
         }
@@ -648,10 +685,10 @@ void setup() {
     resetLEDs();
     
     // TODO: testing, remove later
-    calibratePSU(2000);
+    calibratePSU(5000);
 
     // TODO: testing, remove later
-    runLocations("left");
+    //runLocations("left");
     // runLocations("right");
 }
 
@@ -659,6 +696,7 @@ void setup() {
 void loop() {
     // TODO: testing, remove later
     //printPhotoValues();
+    //properProbe = true;
 
     recvdAppInput = getAppCommand();
 
@@ -688,7 +726,8 @@ void loop() {
                     continue;
                 }
                 Serial.println("Right probe");
-                probeLoop("right");
+                byte rightList[4] = {0,0,0,0};
+                probeLoop("right", rightList); // m1, m3, m5, big toe
             }
             if (footInfo == "left") {
                 initializeLEDs("left", rightLEDPos, leftMidLEDPos);
@@ -696,7 +735,8 @@ void loop() {
                     continue;
                 }
                 Serial.println("Left probe");
-                probeLoop("left");
+                byte leftList[4] = {0,0,0,0};
+                probeLoop("left", leftList); // m1, m3, m5, big toe
             }
 
             toPerform = "";
