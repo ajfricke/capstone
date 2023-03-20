@@ -4,12 +4,39 @@
 
 bool fakeProbe = false;
 
-#define rxBluetoothPin 7 // Green wire
-#define txBluetoothPin 6 // Blue wire
-SoftwareSerial serialComm = SoftwareSerial(rxBluetoothPin, txBluetoothPin);
+// define Arduino pins
+#define interrupterPin1 A0
+#define interrupterPin2 A1
+#define dirPin100 2 // stepper motor 100 DIR
+#define stepPin100 3 // stepper motor 100 STEP
+#define dirPin300 4 // stepper motor 300 DIR
+#define stepPin300 5 // stepper motor 300 DIR
+#define txBluetoothPin 6 // blue wire, HC-05
+#define rxBluetoothPin 7 // green wire, HC-05
+#define dataPin 9 // shift register
+#define latchPin 10 // shift register
+#define clockPin 11 // shift register
+#define servoPin 13 // actuator
 
+// stepper motor variables
+#define mmPerRev 5
+#define oneMicrostepStepsPerRev 200
+#define microstep 0.25 // change if needed
+
+// actuator variables
+#define actuatorMaxTravelDist 36
+#define actuatorShaftLengthMM 50
+#define strokeStepMM 2
+#define delayMS 100
+
+// define stepper motors and actuator
+#define motorInterfaceType 1 // indicates a driver for stepper motors
+AccelStepper stepper100 = AccelStepper(motorInterfaceType, stepPin100, dirPin100);
+AccelStepper stepper300 = AccelStepper(motorInterfaceType, stepPin300, dirPin300);
 Servo myServo;
 
+// app communication variables
+SoftwareSerial serialComm = SoftwareSerial(rxBluetoothPin, txBluetoothPin);
 const byte numChars = 32;
 char receivedChars[numChars];
 char tempChars[numChars];
@@ -18,23 +45,19 @@ byte ndx = 0;
 char rc;
 char startMarker = '<';
 char endMarker = '>';
-
 String footInfo;
 String toPerform;
-
-bool newData = false;
-bool recvdAppInput = false;
-//** END **//
-
-
-//** CALIBRATION INITIALIZATIONS **//
-#define clockPin 11
-#define latchPin 10
-#define dataPin 9
-
 byte sex; // 0 for female, 1 for male
 byte footsize;
+bool newData = false;
+bool recvdAppInput = false;
+byte response = -1;
 
+// keeping track of time
+unsigned long currMillis;
+unsigned long prevMillis;
+
+// LED mappings
 byte footsizeToLED[10][2] = {{0, 0}, {1, 0}, {2, 1}, {3, 1}, {4, 2}, {5, 2}, {6, 2}, {6, 3}, {7, 3}, {8, 3}};
 
 byte leftLEDs[9][4] = {{0,0,0,128}, {0,0,0,64}, {0,0,0,32}, {0,0,0,16},
@@ -53,39 +76,9 @@ byte leftLEDPos = -1;
 byte rightLEDPos = -1;
 byte leftMidLEDPos = -1;
 byte rightMidLEDPos = -1;
-//** END ** //
 
-
-//** PROBING INITIALIZATIONS **//
-// define pins
-#define dirPin100 2
-#define stepPin100 3
-#define dirPin300 4
-#define stepPin300 5
-#define motorInterfaceType 1 // indicates a driver
-#define servoPin 13
-#define interrupterPin1 A0
-#define interrupterPin2 A1
-
-#define mmPerRev 5
-#define oneMicrostepStepsPerRev 200
-#define microstep 0.25 // change if needed
-#define actuatorMaxTravelDist 36
-#define actuatorShaftLengthMM 50
-
-// for actuator probing
-#define strokeStepMM 2
-#define delayMS 100
-
-byte response = -1;
-unsigned long currMillis;
-unsigned long prevMillis;
-
-// 1st metatarsal (x,y) coordinates for different foot sizes
-// float m1CoordList[9][2] = {{18.52799,163.83845}, {19.41122,171.12136}, {20.0718,177.67446},  // M5/W6, M6/W7, M7/W8
-//                                 {21.39691,184.95694}, {21.83603,189.32687}, {22.49935,196.60877}, // M8, M9, M10
-//                                 {22.93777,203.16239}, {24.03872,208.2592}, {24.70276,214.08506}}; // M11, M12, M13
-
+// probing coordinate information
+// TODO: incorporate bigToeModLeft into this list
 float xCoordList[10][4] = {{-37.13021,-7.36082,19.43552,-37.13021},
                             {-36.47201,-5.59986,22.18894,-36.47201},
                             {-35.58878,-3.24636,25.86571,-35.58878},
@@ -98,7 +91,6 @@ float xCoordList[10][4] = {{-37.13021,-7.36082,19.43552,-37.13021},
                             {-30.29724,10.86631,47.91804,-30.29724}};
 
 float bigToeModLeft[10] = {0,0,0,0,0,-0.5,-0.5,-0.75,-1,-1.25};
-//float bigToeModRight[10] = {0,0,0,0,0,0.5,0.5,0.5,1,1};
 
 float yCoordList[10][4] = {{-23.24159,-23.60614,-30.19157,12.20841},
                             {-17.70314,-17.02707,-23.88689,20.20841},
@@ -111,20 +103,11 @@ float yCoordList[10][4] = {{-23.24159,-23.60614,-30.19157,12.20841},
                             {26.71761,27.57716,18.85756,75.20841},
                             {32.54347,33.4268,24.4633,82.20841}};
 
-// conversion factors to get the other probing locations
-// float m3Conversions[2] = {2.666243932,1.004125611};
-// float m5Conversions[2] = {4.166072072,0.962256948};
-// float bigToeConversions[2] = {1,1.231986944};
-// float newReferencePoint[2] = {55, 181.54159};
-// float w5FootsizeCoords[4][2] = {{17.86979, 158.3}, {47.63918, 157.93545}, {74.43552, 151.35002}, {17.86979, 193.75}};
 float probingCoords[4][2];
-
-AccelStepper stepper100 = AccelStepper(motorInterfaceType, stepPin100, dirPin100);
-AccelStepper stepper300 = AccelStepper(motorInterfaceType, stepPin300, dirPin300);
-//** END **//
 
 
 //** CALIBRATION FUNCTIONS **//
+// turn off all LEDs
 void resetLEDs() {
     //Serial.println("Resetting LEDs");
     digitalWrite(latchPin, LOW);
@@ -134,6 +117,8 @@ void resetLEDs() {
     digitalWrite(latchPin, HIGH);
 }
 
+
+// initalize LEDs for calibration or probing
 void initializeLEDs(String foot, byte verticalPos, byte horizPos) {
     //Serial.println("Initializing LEDs");
     digitalWrite(latchPin, LOW);
@@ -152,6 +137,7 @@ void initializeLEDs(String foot, byte verticalPos, byte horizPos) {
 }
 
 
+// update foot size based on true LED positions
 void updateFootsize(byte trueVertPos, byte trueHorizPos, byte estVertPos, byte estHorizPos) {
     byte horizIdxRange[4][2] = {{0, 1}, {2, 3}, {4, 6}, {7, 9}};
     //Serial.println("Updating footsize");
@@ -200,6 +186,7 @@ void updateFootsize(byte trueVertPos, byte trueHorizPos, byte estVertPos, byte e
 }
 
 
+// main calibration function
 void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
     byte verticalPos = verticalStartPos;
     byte horizPos = horizStartPos;
@@ -285,6 +272,16 @@ void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
 
 
 //** PROBING FUNCTIONS **//
+// move motors and actuator back to starting positions
+void resetMotors() {
+    //Serial.println("Resetting to starting position.");
+    moveActuator(0);
+    delay(500);
+    moveXYRails(0, 0);
+}
+
+
+// get and shuffle probing coordinates
 void getProbingCoords() {
     //Serial.println("Getting probing coordinates");
     // determine the coordinates for each probing location
@@ -359,8 +356,6 @@ void moveActuator(float strokeMM) {
     int usec = 1000 + strokePercentage * 1000;
 
     // move actuator
-    //Serial.println(strokePercentage);
-    //Serial.println(strokePercentage);
     myServo.writeMicroseconds(usec);
 }
 
@@ -373,12 +368,9 @@ bool raiseMonofilament() {
         int photoVal2 = analogRead(interrupterPin2); // read the value from the second photointerrupter
 
         if (photoVal1 < 100 || photoVal2 < 100) {
-//            Serial.println(photoVal1);
-//            Serial.println(photoVal2);
             return true;
         }
 
-        //Serial.println(mmLocation);
         moveActuator(mmLocation); // move actuator to mmLocation
         delay(delayMS); // delay by delayMS before next stroke
     }
@@ -388,15 +380,7 @@ bool raiseMonofilament() {
 }
 
 
-// move motors and actuator back to starting positions
-void resetMotors() {
-    //Serial.println("Resetting to starting position.");
-    moveActuator(0);
-    delay(500);
-    moveXYRails(0, 0);
-}
-
-
+// main probing function
 void probeLoop(String foot, byte falseProbeList[4]) {
     bool properProbe;
     //Serial.println("Starting probing.");
@@ -452,10 +436,8 @@ void probeLoop(String foot, byte falseProbeList[4]) {
                 return;
             }
 
-            if (falseProbeList[i] == 0) {
-                //Serial.println("Lowering monofilament.");
-                moveActuator(0); // lower monofilament back down
-            }
+            //Serial.println("Lowering monofilament.");
+            moveActuator(0); // lower monofilament back down
 
             currMillis = millis();
             prevMillis = millis();
@@ -488,7 +470,8 @@ void probeLoop(String foot, byte falseProbeList[4]) {
 //** END **//
 
 
-//** APP INTERACTION FUNCTIONS **//
+//** APP COMMUNICATION FUNCTIONS **//
+// get probing or calibration starting command from app
 bool getAppCommand() {
     // receive data from the app
     while (serialComm.available() > 0 && newData == false) {
@@ -556,6 +539,7 @@ bool getAppCommand() {
 }
 
 
+// get single byte input from app
 byte getAppInput() {
     if (serialComm.available()>0) {
         byte inputByte = serialComm.read();
@@ -570,7 +554,10 @@ byte getAppInput() {
 }
 //** END **//
 
-// TODO: testing, remove later
+
+//** TESTING FUNCTIONS **//
+// runs through all probing locations, moving actuator up and down
+// does 4 locations for one foot of one foot size, then the other foot, then repeats for the next foot size
 void runLocations() {
    for (byte i = 2; i < 10; i++) {
         Serial.print("Location Set #");
@@ -614,6 +601,7 @@ void runLocations() {
    }  
 }
 
+// runs to all locations of big toe without moving actuator
 void runLocations2() {
    for (byte i = 0; i < 10; i++) {
         probingCoords[0][0] = xCoordList[i][0];
@@ -638,7 +626,7 @@ void runLocations2() {
         
    for (byte i = 0; i < 10; i++) {       
         probingCoords[0][0] = xCoordList[i][0];
-        probingCoords[1][0] = xCoordList[i][3]+bigToeModLeft[i];//+bigToeModRight[i];
+        probingCoords[1][0] = xCoordList[i][3]+bigToeModLeft[i];//
         probingCoords[2][0] = xCoordList[i][1];
         probingCoords[3][0] = xCoordList[i][2];
     
@@ -659,7 +647,7 @@ void runLocations2() {
 }
 
 
-
+// calibrate starting location of monofilament
 void calibratePSU(int ms) {
     moveActuator(actuatorMaxTravelDist);
     delay(ms);
@@ -667,6 +655,7 @@ void calibratePSU(int ms) {
 }
 
 
+// continually print values from the photointerrupters
 void printPhotoValues() {
     int photoVal1 = analogRead(interrupterPin1); // read the value from the first photointerrupter
     int photoVal2 = analogRead(interrupterPin2); // read the value from the second photointerrupter
@@ -675,6 +664,7 @@ void printPhotoValues() {
 }
 
 
+// repeatedly raise and lower monofilament, pausing when bend is detected
 void bendTest() {
   for (byte i = 0; i < 20; i++) {
     bool result = raiseMonofilament();
@@ -688,6 +678,7 @@ void bendTest() {
     }
   }
 }
+//** END **//
 
 
 void setup() {
@@ -726,10 +717,6 @@ void setup() {
 
 
 void loop() {
-    // TODO: testing, remove later
-    //printPhotoValues();
-    //properProbe = true;
-
     recvdAppInput = getAppCommand();
 
     if (recvdAppInput) {
