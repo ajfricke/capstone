@@ -601,11 +601,11 @@ void runLocations() {
    }  
 }
 
-// runs to all locations of big toe without moving actuator
-void runLocations2() {
+// runs to all locations of the same location with actuator raised
+void runLocations2(byte location) {
    for (byte i = 0; i < 10; i++) {
         probingCoords[0][0] = xCoordList[i][0];
-        probingCoords[1][0] = xCoordList[i][3]+bigToeModLeft[i];
+        probingCoords[1][0] = xCoordList[i][3];//+bigToeModLeft[i];
         probingCoords[2][0] = xCoordList[i][1];
         probingCoords[3][0] = xCoordList[i][2];
     
@@ -614,7 +614,7 @@ void runLocations2() {
         probingCoords[2][1] = yCoordList[i][1];
         probingCoords[3][1] = yCoordList[i][2];
 
-        moveXYRails(probingCoords[1][0], -probingCoords[1][1]); // left
+        moveXYRails(probingCoords[location][0], -probingCoords[location][1]); // left
         moveActuator(actuatorMaxTravelDist);
         delay(3000);
    }
@@ -626,7 +626,7 @@ void runLocations2() {
         
    for (byte i = 0; i < 10; i++) {       
         probingCoords[0][0] = xCoordList[i][0];
-        probingCoords[1][0] = xCoordList[i][3]+bigToeModLeft[i];//
+        probingCoords[1][0] = xCoordList[i][3];//+bigToeModLeft[i];//
         probingCoords[2][0] = xCoordList[i][1];
         probingCoords[3][0] = xCoordList[i][2];
     
@@ -635,15 +635,63 @@ void runLocations2() {
         probingCoords[2][1] = yCoordList[i][1];
         probingCoords[3][1] = yCoordList[i][2];
 
-        moveXYRails(-probingCoords[1][0], -probingCoords[1][1]); // left
+        moveXYRails(-probingCoords[location][0], -probingCoords[location][1]); // left
         moveActuator(actuatorMaxTravelDist);
         delay(3000);
+   }
+   resetMotors();
+}
+
+
+// do M1 coordinate followed by big toe for each foot size and left/right
+void runLocations3() {
+   for (byte i = 0; i < 10; i++) {
+        probingCoords[0][0] = xCoordList[i][0];
+        probingCoords[1][0] = xCoordList[i][3];
+        probingCoords[2][0] = xCoordList[i][1];
+        probingCoords[3][0] = xCoordList[i][2];
+    
+        probingCoords[0][1] = yCoordList[i][0];
+        probingCoords[1][1] = yCoordList[i][3];
+        probingCoords[2][1] = yCoordList[i][1];
+        probingCoords[3][1] = yCoordList[i][2];
+
+        moveXYRails(probingCoords[0][0], -probingCoords[0][1]); // left M1
+        moveActuator(actuatorMaxTravelDist);
+        delay(3000);
+        moveActuator(actuatorMaxTravelDist-20);
+        moveXYRails(probingCoords[1][0], -probingCoords[1][1]); // left big toe
+        moveActuator(actuatorMaxTravelDist);
+        delay(3000);
+        moveActuator(actuatorMaxTravelDist-20);
    }
    resetMotors();
     moveActuator(actuatorMaxTravelDist);
     delay(5000);
     moveActuator(0);
-    delay(2000); 
+    delay(2000);
+        
+   for (byte i = 0; i < 10; i++) {       
+        probingCoords[0][0] = xCoordList[i][0];
+        probingCoords[1][0] = xCoordList[i][3];
+        probingCoords[2][0] = xCoordList[i][1];
+        probingCoords[3][0] = xCoordList[i][2];
+    
+        probingCoords[0][1] = yCoordList[i][0];
+        probingCoords[1][1] = yCoordList[i][3];
+        probingCoords[2][1] = yCoordList[i][1];
+        probingCoords[3][1] = yCoordList[i][2];
+
+        moveXYRails(-probingCoords[0][0], -probingCoords[0][1]); // right M1
+        moveActuator(actuatorMaxTravelDist);
+        delay(3000);
+        moveActuator(actuatorMaxTravelDist-20);
+        moveXYRails(-probingCoords[1][0], -probingCoords[1][1]); // right big toe
+        moveActuator(actuatorMaxTravelDist);
+        delay(3000);
+        moveActuator(actuatorMaxTravelDist-20);
+   }
+   resetMotors();
 }
 
 
@@ -711,8 +759,9 @@ void setup() {
     delay(1000);
 
     // TODO: testing, remove later
-    //runLocations2();
-    bendTest();
+    //runLocations2(1);
+    //runLocations3();
+    //bendTest();
 }
 
 
