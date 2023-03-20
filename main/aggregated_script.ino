@@ -70,7 +70,7 @@ byte rightMidLEDPos = -1;
 #define mmPerRev 5
 #define oneMicrostepStepsPerRev 200
 #define microstep 0.25 // change if needed
-#define actuatorMaxTravelDist 40
+#define actuatorMaxTravelDist 36
 #define actuatorShaftLengthMM 50
 
 // for actuator probing
@@ -82,16 +82,41 @@ unsigned long currMillis;
 unsigned long prevMillis;
 
 // 1st metatarsal (x,y) coordinates for different foot sizes
-float m1CoordList[9][2] = {{18.52799,163.83845}, {19.41122,171.12136}, {20.0718,177.67446},  // M5/W6, M6/W7, M7/W8
-                                {21.39691,184.95694}, {21.83603,189.32687}, {22.49935,196.60877}, // M8, M9, M10
-                                {22.93777,203.16239}, {24.03872,208.2592}, {24.70276,214.08506}}; // M11, M12, M13
+// float m1CoordList[9][2] = {{18.52799,163.83845}, {19.41122,171.12136}, {20.0718,177.67446},  // M5/W6, M6/W7, M7/W8
+//                                 {21.39691,184.95694}, {21.83603,189.32687}, {22.49935,196.60877}, // M8, M9, M10
+//                                 {22.93777,203.16239}, {24.03872,208.2592}, {24.70276,214.08506}}; // M11, M12, M13
+
+float xCoordList[10][4] = {{-37.13021,-7.36082,19.43552,-37.13021},
+                            {-36.47201,-5.59986,22.18894,-36.47201},
+                            {-35.58878,-3.24636,25.86571,-35.58878},
+                            {-34.9282,-1.48314,28.62138,-34.9282},
+                            {-33.60309,2.04746,34.1369,-33.60309},
+                            {-33.16397,3.22134,35.97242,-33.16397},
+                            {-32.50065,4.98749,38.73103,-32.50065},
+                            {-32.06223,6.16075,40.56592,-32.06223},
+                            {-30.96128,9.09948,45.15875,-30.96128},
+                            {-30.29724,10.86631,47.91804,-30.29724}};
+
+float bigToeModLeft[10] = {0,0,0,0,0,-0.5,-0.5,-0.75,-1,-1.25};
+//float bigToeModRight[10] = {0,0,0,0,0,0.5,0.5,0.5,1,1};
+
+float yCoordList[10][4] = {{-23.24159,-23.60614,-30.19157,12.20841},
+                            {-17.70314,-17.02707,-23.88689,20.20841},
+                            {-10.42023,-9.71417,-16.87887,29.20841},
+                            {-3.86713,-3.1343,-10.57339,37.70841},
+                            {3.41535,4.1785,-3.56548,46.20841},
+                            {7.78528,8.56658,0.63968,52.20841},
+                            {15.06718,15.87828,7.64649,60.70841},
+                            {21.6208,22.45875,13.95257,68.70841},
+                            {26.71761,27.57716,18.85756,75.20841},
+                            {32.54347,33.4268,24.4633,82.20841}};
 
 // conversion factors to get the other probing locations
-float m3Conversions[2] = {2.666243932,1.004125611};
-float m5Conversions[2] = {4.166072072,0.962256948};
-float bigToeConversions[2] = {1,1.231986944};
-float newReferencePoint[2] = {55, 181.54159};
-float w5FootsizeCoords[4][2] = {{17.86979, 158.3}, {47.63918, 157.93545}, {74.43552, 151.35002}, {17.86979, 193.75}};
+// float m3Conversions[2] = {2.666243932,1.004125611};
+// float m5Conversions[2] = {4.166072072,0.962256948};
+// float bigToeConversions[2] = {1,1.231986944};
+// float newReferencePoint[2] = {55, 181.54159};
+// float w5FootsizeCoords[4][2] = {{17.86979, 158.3}, {47.63918, 157.93545}, {74.43552, 151.35002}, {17.86979, 193.75}};
 float probingCoords[4][2];
 
 AccelStepper stepper100 = AccelStepper(motorInterfaceType, stepPin100, dirPin100);
@@ -129,7 +154,7 @@ void initializeLEDs(String foot, byte verticalPos, byte horizPos) {
 
 void updateFootsize(byte trueVertPos, byte trueHorizPos, byte estVertPos, byte estHorizPos) {
     byte horizIdxRange[4][2] = {{0, 1}, {2, 3}, {4, 6}, {7, 9}};
-    Serial.println("Updating footsize");
+    //Serial.println("Updating footsize");
 
     // char printOldFootsize[20];
     // sprintf(printOldFootsize, "Old footsize: %d", footsize);
@@ -263,41 +288,20 @@ void calibrationLoop(String foot, byte verticalStartPos, byte horizStartPos) {
 void getProbingCoords() {
     //Serial.println("Getting probing coordinates");
     // determine the coordinates for each probing location
-    Serial.println(footsize);
-    Serial.println(sex);
-    if ((sex == 0) && (footsize == 5)) {
-        for (byte k = 0; k < 4; k++) {
-            for (byte i = 0; i < 2; i++) {
-                probingCoords[k][i] = w5FootsizeCoords[k][i];
-            }
-        }
-    } else {
-        for (byte i = 0; i < 2; i++) {
-            probingCoords[0][i] = m1CoordList[footsize+sex-6][i];
-            probingCoords[1][i] = probingCoords[0][i]*m3Conversions[i];
-            probingCoords[2][i] = probingCoords[0][i]*m5Conversions[i];
-            probingCoords[3][i] = probingCoords[0][i]*bigToeConversions[i];
-        }
-    }
+    probingCoords[0][0] = xCoordList[footsize+sex-5][0];
+    probingCoords[1][0] = xCoordList[footsize+sex-5][1];
+    probingCoords[2][0] = xCoordList[footsize+sex-5][2];
+    probingCoords[3][0] = xCoordList[footsize+sex-5][3];
 
-    Serial.println("Probing Coordinates before:");
-    for (byte i = 0; i < 4; i++) {
-      Serial.print(probingCoords[i][0], 5);
-      Serial.print(" ");
-      Serial.println(probingCoords[i][1], 5);
-    }
-
-    // recalculate probing coordinates with new reference point
-    for (byte i = 0; i < 4; i++) {
-        for (byte j = 0; j < 2; j++) {
-            probingCoords[i][j] = probingCoords[i][j] - newReferencePoint[j];
-        }
-    }
+    probingCoords[0][1] = yCoordList[footsize+sex-5][0];
+    probingCoords[1][1] = yCoordList[footsize+sex-5][1];
+    probingCoords[2][1] = yCoordList[footsize+sex-5][2];
+    probingCoords[3][1] = yCoordList[footsize+sex-5][3];
 
     // TODO: make sure shuffling is working
     // shuffle the sequence of probing locations
     if (fakeProbe == false) {
-        Serial.println("Not fake probe. Getting coords");
+        //Serial.println("Not fake probe. Getting coords");
         byte j;
         float temp[2];
         for (byte i = 0; i < 4; i++) {
@@ -364,7 +368,7 @@ void moveActuator(float strokeMM) {
 // raise actuator until photointerrupter input
 bool raiseMonofilament() {
     // move actuator up to at most actuatorShaftLengthMM, checking for input from photointerrupters every strokeStepMM
-    for (int mmLocation = 1; mmLocation < actuatorMaxTravelDist; mmLocation += strokeStepMM) {
+    for (int mmLocation = 1; mmLocation < actuatorMaxTravelDist+4; mmLocation += strokeStepMM) {
         int photoVal1 = analogRead(interrupterPin1); // read the value from the first photointerrupter
         int photoVal2 = analogRead(interrupterPin2); // read the value from the second photointerrupter
 
@@ -386,7 +390,7 @@ bool raiseMonofilament() {
 
 // move motors and actuator back to starting positions
 void resetMotors() {
-    Serial.println("Resetting to starting position.");
+    //Serial.println("Resetting to starting position.");
     moveActuator(0);
     delay(500);
     moveXYRails(0, 0);
@@ -402,6 +406,7 @@ void probeLoop(String foot, byte falseProbeList[4]) {
         // negate x-coordinate if left foot, negate y-coordinates
         if (foot == "left") {
             moveXYRails(probingCoords[i][0], -probingCoords[i][1]);
+            
         } else {
             moveXYRails(-probingCoords[i][0], -probingCoords[i][1]);
         }
@@ -410,10 +415,10 @@ void probeLoop(String foot, byte falseProbeList[4]) {
         byte improperProbeCount = 0;
         for (byte j = 0; j < 3; j++) {
             if (falseProbeList[i] == 0) {
-                Serial.println("Raising monofilament.");
+                //Serial.println("Raising monofilament.");
                 properProbe = raiseMonofilament();
             } else {
-                Serial.println("Faking probe!");
+                //Serial.println("Faking probe!");
                 properProbe = true;
             }
 
@@ -421,7 +426,7 @@ void probeLoop(String foot, byte falseProbeList[4]) {
                 j -= 1;
                 improperProbeCount += 1;
             } else {
-                Serial.println("Detected bend. Holding for 2 sec");
+                //Serial.println("Detected bend");
 
                 currMillis = millis();
                 prevMillis = millis();
@@ -434,21 +439,21 @@ void probeLoop(String foot, byte falseProbeList[4]) {
                 }
                 if (response == 1) {
                     Serial.println("Got yes probe");
-                    Serial.println("Lowering monofilament.");
+                    //Serial.println("Lowering monofilament.");
                     moveActuator(0); // lower monofilament back down
                     break;
                 }
             }
 
             if (improperProbeCount == 3){
-                Serial.println("Monofilament not picked up by photointerrupters after 3 tries. Exiting.");
+                //Serial.println("Failed.");
                 serialComm.write(-1); // tell app we failed
                 resetMotors();
                 return;
             }
 
             if (falseProbeList[i] == 0) {
-                Serial.println("Lowering monofilament.");
+                //Serial.println("Lowering monofilament.");
                 moveActuator(0); // lower monofilament back down
             }
 
@@ -461,7 +466,6 @@ void probeLoop(String foot, byte falseProbeList[4]) {
                 response = getAppInput();
                 currMillis = millis();
             }
-
             if (response == 1) {
                 Serial.println("Got yes probe.");
                 break;
@@ -567,81 +571,93 @@ byte getAppInput() {
 //** END **//
 
 // TODO: testing, remove later
-void runLocations(String foot) {
-   Serial.println(foot);
-   // W size 5
-   for (byte k = 0; k < 4; k++) {
-       for (byte i = 0; i < 2; i++) {
-           probingCoords[k][i] = w5FootsizeCoords[k][i];
-       }
-   }
-
-   // recalculate probing coordinates with new reference point
-   for (byte i = 0; i < 4; i++) {
-       for (byte j = 0; j < 2; j++) {
-           probingCoords[i][j] = probingCoords[i][j] - newReferencePoint[j];
-       }
-   }
-
-   Serial.println("Location Set #1 (W5)");
-
-   for (byte a = 0; a < 4; a++) {
-       if (foot == "left") {
-           moveXYRails(-probingCoords[a][0], -probingCoords[a][1]); // left
-       } else {
-           moveXYRails(probingCoords[a][0], -probingCoords[a][1]);
-       }
-       
-       for (int mmLocation = 1; mmLocation < actuatorMaxTravelDist; mmLocation += strokeStepMM) {
-           moveActuator(mmLocation); // move actuator to mmLocation
-           delay(delayMS); // delay by delayMS before next stroke
-       }
-       delay(100);
-       moveActuator(0);
-       delay(250);
-   }
-
-   resetMotors();
-   delay(1000);
-
-    for (byte j = 0; j < 9; j++) {
-        for (byte i = 0; i < 2; i++) {
-            probingCoords[0][i] = m1CoordList[j][i];
-            probingCoords[1][i] = probingCoords[0][i]*m3Conversions[i];
-            probingCoords[2][i] = probingCoords[0][i]*m5Conversions[i];
-            probingCoords[3][i] = probingCoords[0][i]*bigToeConversions[i];
-        }
-
-        // recalculate probing coordinates with new reference point
-        for (byte i = 0; i < 4; i++) {
-            for (byte j = 0; j < 2; j++) {
-                probingCoords[i][j] = probingCoords[i][j] - newReferencePoint[j];
-            }
-        }
-
+void runLocations() {
+   for (byte i = 2; i < 10; i++) {
         Serial.print("Location Set #");
-        Serial.println(j+2);
+        Serial.println(i+1);
+        
+        probingCoords[0][0] = xCoordList[i][0];
+        probingCoords[1][0] = xCoordList[i][3];
+        probingCoords[2][0] = xCoordList[i][1];
+        probingCoords[3][0] = xCoordList[i][2];
+    
+        probingCoords[0][1] = yCoordList[i][0];
+        probingCoords[1][1] = yCoordList[i][3];
+        probingCoords[2][1] = yCoordList[i][1];
+        probingCoords[3][1] = yCoordList[i][2];
 
         for (byte a = 0; a < 4; a++) {
-            if (foot == "left") {
-                moveXYRails(-probingCoords[a][0], -probingCoords[a][1]); // left
-            } else {
-                moveXYRails(probingCoords[a][0], -probingCoords[a][1]);
-            }
+            moveXYRails(probingCoords[a][0], -probingCoords[a][1]); // left
+            Serial.println("Now");
+            Serial.println(probingCoords[a][0]);
+            Serial.println(-probingCoords[a][1]);
 
-            for (int mmLocation = 1; mmLocation < actuatorMaxTravelDist; mmLocation += strokeStepMM) {
-                moveActuator(mmLocation); // move actuator to mmLocation
-                delay(delayMS); // delay by delayMS before next stroke
-            }
-            delay(100);
+            moveActuator(actuatorMaxTravelDist);
+            delay(8000);
             moveActuator(0);
-            delay(250);
+            delay(500);
+        }
+        for (byte a = 0; a < 4; a++) {
+            moveXYRails(-probingCoords[a][0], -probingCoords[a][1]); // right
+
+            moveActuator(actuatorMaxTravelDist);
+            delay(8000);
+            moveActuator(0);
+            delay(500);
         }
 
         resetMotors();
-        delay(1000);
-    }
+        moveActuator(actuatorMaxTravelDist);
+        delay(5000);
+        moveActuator(0);
+        delay(2000);
+   }  
 }
+
+void runLocations2() {
+   for (byte i = 0; i < 10; i++) {
+        probingCoords[0][0] = xCoordList[i][0];
+        probingCoords[1][0] = xCoordList[i][3]+bigToeModLeft[i];
+        probingCoords[2][0] = xCoordList[i][1];
+        probingCoords[3][0] = xCoordList[i][2];
+    
+        probingCoords[0][1] = yCoordList[i][0];
+        probingCoords[1][1] = yCoordList[i][3];
+        probingCoords[2][1] = yCoordList[i][1];
+        probingCoords[3][1] = yCoordList[i][2];
+
+        moveXYRails(probingCoords[1][0], -probingCoords[1][1]); // left
+        moveActuator(actuatorMaxTravelDist);
+        delay(3000);
+   }
+   resetMotors();
+    moveActuator(actuatorMaxTravelDist);
+    delay(5000);
+    moveActuator(0);
+    delay(2000);
+        
+   for (byte i = 0; i < 10; i++) {       
+        probingCoords[0][0] = xCoordList[i][0];
+        probingCoords[1][0] = xCoordList[i][3]+bigToeModLeft[i];//+bigToeModRight[i];
+        probingCoords[2][0] = xCoordList[i][1];
+        probingCoords[3][0] = xCoordList[i][2];
+    
+        probingCoords[0][1] = yCoordList[i][0];
+        probingCoords[1][1] = yCoordList[i][3];
+        probingCoords[2][1] = yCoordList[i][1];
+        probingCoords[3][1] = yCoordList[i][2];
+
+        moveXYRails(-probingCoords[1][0], -probingCoords[1][1]); // left
+        moveActuator(actuatorMaxTravelDist);
+        delay(3000);
+   }
+   resetMotors();
+    moveActuator(actuatorMaxTravelDist);
+    delay(5000);
+    moveActuator(0);
+    delay(2000); 
+}
+
 
 
 void calibratePSU(int ms) {
@@ -656,6 +672,21 @@ void printPhotoValues() {
     int photoVal2 = analogRead(interrupterPin2); // read the value from the second photointerrupter
     Serial.println(photoVal1);
     Serial.println(photoVal2);
+}
+
+
+void bendTest() {
+  for (byte i = 0; i < 20; i++) {
+    bool result = raiseMonofilament();
+
+    if (result == true) {
+        delay(3000);
+        moveActuator(0);
+        delay(1000);
+    } else {
+        delay(1000);
+    }
+  }
 }
 
 
@@ -686,10 +717,11 @@ void setup() {
     
     // TODO: testing, remove later
     calibratePSU(5000);
+    delay(1000);
 
     // TODO: testing, remove later
-    //runLocations("left");
-    // runLocations("right");
+    //runLocations2();
+    bendTest();
 }
 
 
@@ -706,12 +738,12 @@ void loop() {
             byte verticalLEDStartPos = footsizeToLED[footsize+sex-5][0];
             byte horizLEDStartPos = footsizeToLED[footsize+sex-5][1];
             if (footInfo == "right") { // calibrate right foot
-                Serial.println("Right calib");
+                //Serial.println("Right calib");
                 initializeLEDs("right", verticalLEDStartPos, horizLEDStartPos);
                 calibrationLoop("right", verticalLEDStartPos, horizLEDStartPos);
             }
             if (footInfo == "left") { // calibrate left foot
-                Serial.println("Left calib");
+                //Serial.println("Left calib");
                 initializeLEDs("left", verticalLEDStartPos, horizLEDStartPos);
                 calibrationLoop("left", verticalLEDStartPos, horizLEDStartPos);
             }
@@ -725,7 +757,7 @@ void loop() {
                 while (getAppInput() != 1) { // wait from confirmation from app
                     continue;
                 }
-                Serial.println("Right probe");
+                //Serial.println("Right probe");
                 byte rightList[4] = {0,0,0,0};
                 probeLoop("right", rightList); // m1, m3, m5, big toe
             }
@@ -734,7 +766,7 @@ void loop() {
                 while (getAppInput() != 1) { // wait from confirmation from app
                     continue;
                 }
-                Serial.println("Left probe");
+                //Serial.println("Left probe");
                 byte leftList[4] = {0,0,0,0};
                 probeLoop("left", leftList); // m1, m3, m5, big toe
             }
